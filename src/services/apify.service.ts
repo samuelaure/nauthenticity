@@ -42,3 +42,38 @@ export const runInstagramScraper = async (username: string, maxPosts = 10) => {
         actorRunId: run.id
     };
 };
+
+export interface ApifyProfileInfo {
+    username: string;
+    profilePicUrl: string;
+    profilePicUrlHD?: string;
+    biography?: string;
+    fullName?: string;
+    followersCount?: number;
+    followsCount?: number;
+    postsCount?: number;
+}
+
+export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo | null> => {
+    console.log(`[Apify] Fetching profile info for ${username} with actor lezdhAFfa4H5zAb2A...`);
+    const run = await client.actor("lezdhAFfa4H5zAb2A").call({
+        usernames: [username],
+    });
+
+    console.log(`[Apify] Profile scrape finished. Dataset: ${run.defaultDatasetId}`);
+    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+
+    if (items.length === 0) return null;
+
+    const item = items[0] as any;
+    return {
+        username: item.username,
+        profilePicUrl: item.profilePicUrl || item.profile_pic_url,
+        profilePicUrlHD: item.profilePicUrlHD || item.hd_profile_pic_url_info?.url,
+        biography: item.biography,
+        fullName: item.fullName || item.full_name,
+        followersCount: item.followersCount || item.followers_count,
+        followsCount: item.followsCount || item.following_count,
+        postsCount: item.postsCount || item.media_count,
+    };
+};
