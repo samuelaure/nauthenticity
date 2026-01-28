@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Post {
+  id              String   @id @default(uuid())
+  instagramUrl    String   @unique
+  caption         String?
+  postedAt        DateTime
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  views           Int?
+  engagementScore Float?
+  
+  media           Media[]
+  transcripts     Transcript[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Media {
+  id          String   @id @default(uuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id])
+  type        String   // "video" | "image"
+  storageUrl  String   // Local path or R2 URL
+  duration    Float?
+  
+  createdAt   DateTime @default(now())
+}
+
+model Transcript {
+  id          String   @id @default(uuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id])
+  text        String
+  json        Json?    // Full Whisper response with timestamps
+  
+  createdAt   DateTime @default(now())
+}
