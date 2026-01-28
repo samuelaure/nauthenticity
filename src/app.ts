@@ -8,8 +8,18 @@ import './queues/processing.worker'; // Register worker
 
 const fastify = Fastify({ logger: true });
 
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+
+// ...
+
 fastify.register(cors, {
     origin: true
+});
+
+fastify.register(fastifyStatic, {
+    root: path.resolve(__dirname, '../storage'),
+    prefix: '/content/',
 });
 
 fastify.post('/ingest', async (request, reply) => {

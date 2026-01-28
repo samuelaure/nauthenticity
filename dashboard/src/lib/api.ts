@@ -15,10 +15,10 @@ export interface Account {
     };
 }
 
-export interface Media {
+export interface Transcript {
     id: string;
-    type: string;
-    storageUrl: string;
+    text: string;
+    json?: any;
 }
 
 export interface Post {
@@ -28,7 +28,11 @@ export interface Post {
     postedAt: string;
     likes: number;
     comments: number;
+    views?: number;
+    engagementScore?: number;
+    username?: string;
     media: Media[];
+    transcripts?: Transcript[];
 }
 
 export interface AccountDetails extends Account {
@@ -42,6 +46,11 @@ export const getAccounts = async () => {
 
 export const getAccount = async (username: string) => {
     const { data } = await api.get<AccountDetails>(`/accounts/${username}`);
+    return data;
+};
+
+export const getPost = async (id: string) => {
+    const { data } = await api.get<Post>(`/posts/${id}`);
     return data;
 };
 

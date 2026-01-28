@@ -57,7 +57,7 @@ export const AccountsList = () => {
                     <div
                         key={account.username}
                         className="account-card fade-in"
-                        onClick={() => navigate(`/account/${account.username}`)}
+                        onClick={() => navigate(`/accounts/${account.username}`)}
                     >
                         <div className="profile-header">
                             <img
