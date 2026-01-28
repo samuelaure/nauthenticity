@@ -13,9 +13,13 @@ fastify.post('/ingest', async (request, reply) => {
     }
 
     // Run in background to avoid timeout
-    ingestProfile(username, limit || 10).catch(err => {
-        fastify.log.error(err);
-    });
+    ingestProfile(username, limit || 10)
+        .then(res => {
+            fastify.log.info(`[App] Ingestion completed for ${username}: Found ${res.found}, Queued ${res.queued}`);
+        })
+        .catch(err => {
+            fastify.log.error(`[App] Ingestion failed for ${username}: ${err.message}`);
+        });
 
     return { status: 'started', message: `Ingestion started for ${username}` };
 });

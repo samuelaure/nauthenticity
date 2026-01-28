@@ -110,6 +110,11 @@ Build a scalable system that:
 - **Enrichment**: `pillar`, `hook`, `tone`, `topics`.
 - **Analytics**: `metrics`, `scores`.
 
-## ⚙️ Automation Logic
-- **Scheduler**: Weekly scrape for new posts.
-- **Queue Flow**: Scrape -> Download -> Process -> Enrich -> Embed -> Analyze.
+## 🔮 Future Improvements & Roadmap
+
+- **Bulk Ingestion API**: Endpoint to ingest multiple profiles in a single request (`POST /ingest/bulk`).
+- **Parallel Processing Scaling**: Optimize BullMQ concurrency based on hardware limits.
+- **Image OCR**: Implement Phase 2 image processing with Tesseract.
+- **Advanced Sentiment Analysis**: Detect emotional resonance in comments.
+- **Auto-Repurposing**: Generate Reels scripts from existing long-form captions.
+- **Vector Search UI**: A dashboard to query the "creator brain".
