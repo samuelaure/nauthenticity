@@ -17,5 +17,6 @@ export const config = {
     },
     paths: {
         temp: './temp',
+        storage: './storage',
     }
 };

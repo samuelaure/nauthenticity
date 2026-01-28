@@ -108,7 +108,49 @@ export const processingWorker = new Worker('processing-queue', async (job: Job<P
         console.error(`[Worker] Job Failed:`, error);
         throw error;
     } finally {
-        // Cleanup files
+        // Optimize video and clean up
+        const storageDir = config.paths.storage;
+        if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir);
+
+        const optimizedPath = path.join(storageDir, `${postId}.mp4`);
+
+        try {
+            if (fs.existsSync(videoPath)) {
+                console.log(`[Worker] Optimizing video for storage...`);
+                await new Promise((resolve, reject) => {
+                    ffmpeg(videoPath)
+                        .outputOptions([
+                            '-c:v libx264',
+                            '-crf 28',         // Balance between size and quality
+                            '-preset slow',    // Better compression
+                            '-vf scale=-2:720', // Resize to 720p (maintain aspect ratio)
+                            '-c:a aac',
+                            '-b:a 128k'
+                        ])
+                        .save(optimizedPath)
+                        .on('end', resolve)
+                        .on('error', reject);
+                });
+                console.log(`[Worker] Video optimized and saved to ${optimizedPath}`);
+
+                // Update Media URL to local path
+                const media = await prisma.media.findFirst({
+                    where: { postId, type: 'video' }
+                });
+
+                if (media) {
+                    await prisma.media.update({
+                        where: { id: media.id },
+                        data: { storageUrl: optimizedPath }
+                    });
+                }
+            }
+        } catch (optimizeError) {
+            console.error(`[Worker] Optimization failed:`, optimizeError);
+            // Don't throw, we successfully transcribed
+        }
+
+        // Cleanup temp files
         if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
         if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
     }
