@@ -1,0 +1,7 @@
+node_modules
+dist
+.env
+commit_msg.txt
+temp
+*.log
+.DS_Store
