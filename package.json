@@ -1,0 +1,44 @@
+{
+  "name": "nauthenticity",
+  "version": "1.0.0",
+  "description": "**naŭthenticity** is an AI-powered content intelligence engine that turns Instagram profiles into structured, searchable knowledge. It extracts posts, transcribes media, analyzes hooks, pillars, and strategy, then builds a vectorized brain to generate high-performing content in the creator’s style.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "dev": "nodemon --exec ts-node src/app.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samuelaure/nauthenticity.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/samuelaure/nauthenticity/issues"
+  },
+  "homepage": "https://github.com/samuelaure/nauthenticity#readme",
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "apify-client": "^2.22.0",
+    "bullmq": "^5.67.2",
+    "dotenv": "^17.2.3",
+    "fastify": "^5.7.2",
+    "fluent-ffmpeg": "^2.1.3",
+    "ioredis": "^5.9.2",
+    "openai": "^6.16.0"
+  },
+  "prisma": {
+    "schema": "src/db/schema.prisma"
+  },
+  "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.28",
+    "@types/node": "^25.0.10",
+    "nodemon": "^3.1.11",
+    "prisma": "5.22.0",
+    "rimraf": "^6.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: nauthenticity_app
+    restart: always
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+    networks:
+      - shared-mesh
+
+networks:
+  shared-mesh:
+    external: true
