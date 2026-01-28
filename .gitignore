@@ -5,3 +5,5 @@ commit_msg.txt
 temp
 *.log
 .DS_Store
+src/src/  
+src/generated/ 
