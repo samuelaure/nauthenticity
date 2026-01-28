@@ -1,6 +1,27 @@
-# naŭthenticity — AI Content Intelligence Engine
+# naŭthenticity — AI Content Intelligence
+# nauthenticity
 
-**naŭthenticity** is an AI-powered content intelligence engine that turns Instagram profiles into structured, searchable knowledge. It extracts posts, transcribes media, analyzes hooks, pillars, and strategy, then builds a vectorized brain to generate high-performing content in the creator’s style.
+**naŭthenticity** is an AI-powered content intelligence engine that turns Instagram profiles into structured, searchable knowledge.
+
+## Quick Start
+
+1.  **Install Dependencies**
+    ```bash
+    npm install
+    cd dashboard && npm install && cd ..
+    ```
+
+2.  **Database Setup**
+    ```bash
+    npx prisma generate
+    npx prisma db push
+    ```
+
+3.  **Run Application**
+    -   **Backend API**: `npm run dev` (Runs on http://localhost:3000)
+    -   **Dashboard**: `cd dashboard && npm run dev` (Runs on http://localhost:5173)
+
+    Open the dashboard to track accounts and view ingested content.
 
 ## 🚀 Getting Started
 
