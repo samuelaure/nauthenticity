@@ -28,8 +28,6 @@ export interface ApifyInstagramPost {
 export const runInstagramScraper = async (username: string, maxPosts = 10) => {
     console.log(`[Apify] Starting scrape for ${username} with optimized actor...`);
 
-    // Run the actor: https://apify.com/apify/instagram-post-scraper
-    // Using the ID from the URL provided by the user: gcfjdE6gC9K5aGsgi
     const run = await client.actor("apify/instagram-post-scraper").call({
         username: [username],
         resultsLimit: maxPosts,
@@ -37,7 +35,10 @@ export const runInstagramScraper = async (username: string, maxPosts = 10) => {
 
     console.log(`[Apify] Run finished. Dataset ID: ${run.defaultDatasetId}`);
 
-    // Fetch results
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
-    return items as any as ApifyInstagramPost[];
+    return {
+        items: items as any as ApifyInstagramPost[],
+        datasetId: run.defaultDatasetId,
+        actorRunId: run.id
+    };
 };

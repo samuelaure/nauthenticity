@@ -19,6 +19,9 @@ model Post {
   views           Int?
   engagementScore Float?
   
+  runId           String?
+  run             ScrapingRun? @relation(fields: [runId], references: [id])
+
   media           Media[]
   transcripts     Transcript[]
   
@@ -26,6 +29,19 @@ model Post {
   updatedAt       DateTime @updatedAt
 
   @@index([username])
+}
+
+model ScrapingRun {
+  id          String   @id @default(uuid())
+  username    String
+  actorRunId  String?  @unique
+  datasetId   String?
+  rawData     Json?    // Optional: store full JSON result for 24h fallback
+  status      String   @default("completed") // "pending", "completed", "failed"
+  
+  posts       Post[]
+  
+  createdAt   DateTime @default(now())
 }
 
 model Media {

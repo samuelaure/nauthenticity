@@ -49,20 +49,56 @@ export const processingWorker = new Worker('processing-queue', async (job: Job<P
                 .save(audioPath);
         });
 
-        // 3. Transcribe with Whisper API
-        console.log(`[Worker] Transcribing with OpenAI Whisper...`);
-        const transcription = await openai.audio.transcriptions.create({
-            file: fs.createReadStream(audioPath),
-            model: 'whisper-1',
-        });
+        // 3. Size Check & Transcription
+        const stats = fs.statSync(audioPath);
+        const MAX_SIZE = 25 * 1024 * 1024; // 25MB limit 
+        let finalTranscript = '';
+        let fullResponse = {};
+
+        if (stats.size > MAX_SIZE) {
+            console.log(`[Worker] Audio file too large (${(stats.size / 1024 / 1024).toFixed(2)}MB). Splitting...`);
+            // Split into 10 min chunks (600s)
+            const chunkPattern = path.join(config.paths.temp, `${uniqueId}_%03d.mp3`);
+
+            await new Promise((resolve, reject) => {
+                ffmpeg(audioPath)
+                    .outputOptions(['-f segment', '-segment_time 600', '-c copy'])
+                    .on('end', resolve)
+                    .on('error', reject)
+                    .save(chunkPattern);
+            });
+
+            const chunks = fs.readdirSync(config.paths.temp)
+                .filter(f => f.startsWith(`${uniqueId}_`) && f.endsWith('.mp3'))
+                .sort();
+
+            console.log(`[Worker] Transcribing ${chunks.length} chunks...`);
+            for (const chunk of chunks) {
+                const chunkPath = path.join(config.paths.temp, chunk);
+                const translation = await openai.audio.transcriptions.create({
+                    file: fs.createReadStream(chunkPath),
+                    model: 'whisper-1',
+                });
+                finalTranscript += translation.text + ' ';
+                fs.unlinkSync(chunkPath);
+            }
+        } else {
+            console.log(`[Worker] Transcribing with OpenAI Whisper...`);
+            const translation = await openai.audio.transcriptions.create({
+                file: fs.createReadStream(audioPath),
+                model: 'whisper-1',
+            });
+            finalTranscript = translation.text;
+            fullResponse = translation;
+        }
 
         // 4. Save to Database
         console.log(`[Worker] Saving transcript...`);
         await prisma.transcript.create({
             data: {
                 postId,
-                text: transcription.text,
-                json: transcription as any,
+                text: finalTranscript.trim(),
+                json: fullResponse as any,
             },
         });
 
