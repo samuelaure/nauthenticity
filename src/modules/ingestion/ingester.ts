@@ -1,9 +1,43 @@
-import { runInstagramScraper } from '../../services/apify.service';
+import { runInstagramScraper, getProfileInfo } from '../../services/apify.service';
 import { prisma } from '../../db/prisma';
 import { processingQueue } from '../../queues/processing.queue';
 
 export const ingestProfile = async (username: string, maxPosts = 10) => {
     console.log(`[Ingester] Starting ingestion for ${username}`);
+
+    // 0. Ensure Account exists (Identity)
+    // @ts-ignore - Prisma client potentially outdated due to dev environment locks
+    let account = await prisma.account.findUnique({ where: { username } });
+    if (!account) {
+        console.log(`[Ingester] Account ${username} not found. Fetching profile info...`);
+        try {
+            const profile = await getProfileInfo(username);
+            if (profile) {
+                // @ts-ignore
+                account = await prisma.account.create({
+                    data: {
+                        username: profile.username,
+                        profileImageUrl: profile.profilePicUrlHD || profile.profilePicUrl,
+                        lastScrapedAt: new Date(),
+                    }
+                });
+            } else {
+                console.warn(`[Ingester] Could not fetch profile info for ${username}. Creating placeholder.`);
+                // @ts-ignore
+                account = await prisma.account.create({
+                    data: { username, lastScrapedAt: new Date() }
+                });
+            }
+        } catch (e) {
+            console.error(`[Ingester] Error fetching profile info: ${e}`);
+            // Fallback
+            // @ts-ignore
+            account = await prisma.account.create({
+                data: { username, lastScrapedAt: new Date() }
+            });
+        }
+    }
+
 
     // 1. Check for cached run (within last 24 hours) to avoid duplicated Apify costs
     const cacheThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -95,8 +129,9 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
                 continue;
             }
 
-            // 5. Handle Media (Video only for now as per MVP)
+            // 5. Handle Media
             const isVideo = item.type === 'Video' || !!videoUrl;
+            const imageUrl = item.displayUrl || item.thumbnail || (item.images && item.images.length > 0 ? item.images[0] : null);
 
             if (isVideo && videoUrl) {
                 const existingMedia = post.media.find(m => m.type === 'video');
@@ -123,6 +158,18 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
                     }
                 });
                 queuedCount++;
+            } else if (imageUrl) {
+                // Store image media if not video
+                const existingMedia = post.media.find(m => m.type === 'image');
+                if (!existingMedia) {
+                    await prisma.media.create({
+                        data: {
+                            postId: post.id,
+                            type: 'image',
+                            storageUrl: imageUrl,
+                        }
+                    });
+                }
             }
         } catch (postError) {
             console.error(`[Ingester] Failed to process individual post: ${item.url || item.shortcode}`, postError);
