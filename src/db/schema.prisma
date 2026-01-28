@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/client"
+  output   = "../generated/client"
 }
 
 datasource db {
@@ -16,6 +16,7 @@ model Post {
   username        String?
   account         Account? @relation(fields: [username], references: [username])
   caption         String?
+  originalCaption String?  // Stores original scraped caption if edited
   postedAt        DateTime
   likes           Int      @default(0)
   comments        Int      @default(0)
@@ -71,6 +72,7 @@ model Transcript {
   postId      String
   post        Post     @relation(fields: [postId], references: [id])
   text        String
+  originalText String? // Stores original Whisper text if edited
   json        Json?    // Full Whisper response with timestamps
   
   createdAt   DateTime @default(now())

@@ -33,6 +33,8 @@ export interface Post {
     username?: string;
     media: Media[];
     transcripts?: Transcript[];
+    newerPostId?: string | null;
+    olderPostId?: string | null;
 }
 
 export interface AccountDetails extends Account {
@@ -51,6 +53,11 @@ export const getAccount = async (username: string) => {
 
 export const getPost = async (id: string) => {
     const { data } = await api.get<Post>(`/posts/${id}`);
+    return data;
+};
+
+export const updatePost = async (id: string, updates: { caption?: string; transcriptText?: string }) => {
+    const { data } = await api.put(`/posts/${id}`, updates);
     return data;
 };
 

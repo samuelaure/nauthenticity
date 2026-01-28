@@ -91,10 +91,92 @@ fastify.get('/posts/:id', async (request, reply) => {
             }
         });
         if (!post) return reply.status(404).send({ error: "Post not found" });
-        return post;
+
+        // Navigation (Next/Prev based on postedAt for the same account)
+        // Newer post (postedAt > current) -> Order ASC, Take 1
+        const newerPost = await prisma.post.findFirst({
+            where: {
+                username: post.username,
+                postedAt: { gt: post.postedAt }
+            },
+            orderBy: { postedAt: 'asc' },
+            select: { id: true }
+        });
+
+        // Older post (postedAt < current) -> Order DESC, Take 1
+        const olderPost = await prisma.post.findFirst({
+            where: {
+                username: post.username,
+                postedAt: { lt: post.postedAt }
+            },
+            orderBy: { postedAt: 'desc' },
+            select: { id: true }
+        });
+
+        return {
+            ...post,
+            newerPostId: newerPost?.id,
+            olderPostId: olderPost?.id
+        };
     } catch (e) {
         request.log.error(e);
         return reply.status(500).send({ error: "Failed to fetch post" });
+    }
+});
+
+fastify.put('/posts/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { caption, transcriptText } = request.body as { caption?: string; transcriptText?: string };
+
+    try {
+        const post = await prisma.post.findUnique({
+            where: { id },
+            include: { transcripts: true }
+        });
+
+        if (!post) return reply.status(404).send({ error: "Post not found" });
+
+        // Update Caption
+        if (caption !== undefined && caption !== post.caption) {
+            await prisma.post.update({
+                where: { id },
+                data: {
+                    caption,
+                    // If originalCaption is not set, set it to the OLD caption
+                    originalCaption: post.originalCaption ?? post.caption
+                }
+            });
+        }
+
+        // Update Transcript (First one)
+        if (transcriptText !== undefined && post.transcripts.length > 0) {
+            const transcript = post.transcripts[0];
+            if (transcript.text !== transcriptText) {
+                await prisma.transcript.update({
+                    where: { id: transcript.id },
+                    data: {
+                        text: transcriptText,
+                        // If originalText is not set, set it to the OLD text
+                        originalText: transcript.originalText ?? transcript.text
+                    }
+                });
+            }
+        } else if (transcriptText !== undefined && post.transcripts.length === 0) {
+            // Create new if doesn't exist? (Optional, implies manual transcription addition)
+            // For now, ignore or throw. Let's create one.
+            await prisma.transcript.create({
+                data: {
+                    postId: id,
+                    text: transcriptText,
+                    originalText: ''
+                }
+            });
+        }
+
+        return { success: true };
+    } catch (e) {
+        request.log.error(e);
+        return reply.status(500).send({ error: "Failed to update post" });
     }
 });
 
