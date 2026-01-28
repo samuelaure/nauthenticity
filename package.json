@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/samuelaure/nauthenticity#readme",
   "dependencies": {
+    "@fastify/cors": "^11.2.0",
     "@prisma/client": "5.22.0",
     "apify-client": "^2.22.0",
     "bullmq": "^5.67.2",
