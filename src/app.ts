@@ -54,7 +54,10 @@ fastify.get('/accounts/:username', async (request, reply) => {
             include: {
                 posts: {
                     orderBy: { postedAt: 'desc' },
-                    include: { media: true }
+                    include: {
+                        media: true,
+                        transcripts: true // Include transcripts for full data access
+                    }
                 }
             }
         });
@@ -63,6 +66,25 @@ fastify.get('/accounts/:username', async (request, reply) => {
     } catch (e) {
         request.log.error(e);
         return reply.status(500).send({ error: "Failed to fetch account" });
+    }
+});
+
+fastify.get('/posts/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+        const post = await prisma.post.findUnique({
+            where: { id },
+            include: {
+                media: true,
+                transcripts: true,
+                account: true
+            }
+        });
+        if (!post) return reply.status(404).send({ error: "Post not found" });
+        return post;
+    } catch (e) {
+        request.log.error(e);
+        return reply.status(500).send({ error: "Failed to fetch post" });
     }
 });
 
