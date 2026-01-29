@@ -1,4 +1,3 @@
-
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AccountsList } from './pages/AccountsList';
@@ -20,8 +19,12 @@ function App() {
               <h1>naŭthenticity</h1>
             </Link>
             <nav style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-              <Link to="/" className="nav-link">Accounts</Link>
-              <Link to="/queue" className="nav-link">Queue</Link>
+              <Link to="/" className="nav-link">
+                Accounts
+              </Link>
+              <Link to="/queue" className="nav-link">
+                Queue
+              </Link>
             </nav>
           </header>
           <Routes>
@@ -33,7 +36,7 @@ function App() {
         </div>
       </BrowserRouter>
     </QueryClientProvider>
-  )
+  );
 }
 
-export default App
+export default App;

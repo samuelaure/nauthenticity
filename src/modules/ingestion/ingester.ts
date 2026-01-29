@@ -3,179 +3,196 @@ import { prisma } from '../../db/prisma';
 import { processingQueue } from '../../queues/processing.queue';
 
 export const ingestProfile = async (username: string, maxPosts = 10) => {
-    console.log(`[Ingester] Starting ingestion for ${username}`);
+  console.log(`[Ingester] Starting ingestion for ${username}`);
 
-    // 0. Ensure Account exists (Identity)
-    // @ts-ignore - Prisma client potentially outdated due to dev environment locks
-    let account = await prisma.account.findUnique({ where: { username } });
-    if (!account) {
-        console.log(`[Ingester] Account ${username} not found. Fetching profile info...`);
-        try {
-            const profile = await getProfileInfo(username);
-            if (profile) {
-                // @ts-ignore
-                account = await prisma.account.create({
-                    data: {
-                        username: profile.username,
-                        profileImageUrl: profile.profilePicUrlHD || profile.profilePicUrl,
-                        lastScrapedAt: new Date(),
-                    }
-                });
-            } else {
-                console.warn(`[Ingester] Could not fetch profile info for ${username}. Creating placeholder.`);
-                // @ts-ignore
-                account = await prisma.account.create({
-                    data: { username, lastScrapedAt: new Date() }
-                });
-            }
-        } catch (e) {
-            console.error(`[Ingester] Error fetching profile info: ${e}`);
-            // Fallback
-            // @ts-ignore
-            account = await prisma.account.create({
-                data: { username, lastScrapedAt: new Date() }
-            });
-        }
-    }
-
-
-    // 1. Check for cached run (within last 24 hours) to avoid duplicated Apify costs
-    const cacheThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const cachedRun = await prisma.scrapingRun.findFirst({
-        where: {
-            username,
-            status: 'completed',
-            createdAt: { gte: cacheThreshold }
-        },
-        orderBy: { createdAt: 'desc' }
-    });
-
-    let items: any[] = [];
-    let runId: string | undefined;
-    let actorRunId: string | undefined;
-
-    if (cachedRun && cachedRun.rawData) {
-        console.log(`[Ingester] Using cached scraping results from run ${cachedRun.id}`);
-        items = cachedRun.rawData as any[];
-        runId = cachedRun.id;
-    } else {
-        const scrapeResult = await runInstagramScraper(username, maxPosts);
-        items = scrapeResult.items;
-        actorRunId = scrapeResult.actorRunId;
-
-        // Create internal run record
-        const run = await prisma.scrapingRun.create({
-            data: {
-                username,
-                actorRunId: scrapeResult.actorRunId,
-                datasetId: scrapeResult.datasetId,
-                rawData: items as any,
-                status: 'completed'
-            }
+  // 0. Ensure Account exists (Identity)
+  // @ts-ignore - Prisma client potentially outdated due to dev environment locks
+  let account = await prisma.account.findUnique({ where: { username } });
+  if (!account) {
+    console.log(`[Ingester] Account ${username} not found. Fetching profile info...`);
+    try {
+      const profile = await getProfileInfo(username);
+      if (profile) {
+        // @ts-ignore
+        account = await prisma.account.create({
+          data: {
+            username: profile.username,
+            profileImageUrl: profile.profilePicUrlHD || profile.profilePicUrl,
+            lastScrapedAt: new Date(),
+          },
         });
-        runId = run.id;
+      } else {
+        console.warn(
+          `[Ingester] Could not fetch profile info for ${username}. Creating placeholder.`,
+        );
+        // @ts-ignore
+        account = await prisma.account.create({
+          data: { username, lastScrapedAt: new Date() },
+        });
+      }
+    } catch (e) {
+      console.error(`[Ingester] Error fetching profile info: ${e}`);
+      // Fallback
+      // @ts-ignore
+      account = await prisma.account.create({
+        data: { username, lastScrapedAt: new Date() },
+      });
     }
+  }
 
-    console.log(`[Ingester] Processing ${items.length} posts. Saving to DB...`);
+  // 1. Check for cached run (within last 24 hours) to avoid duplicated Apify costs
+  const cacheThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const cachedRun = await prisma.scrapingRun.findFirst({
+    where: {
+      username,
+      status: 'completed',
+      createdAt: { gte: cacheThreshold },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
-    let queuedCount = 0;
+  let items: any[] = [];
+  let runId: string | undefined;
+  let actorRunId: string | undefined;
 
-    for (const item of items) {
-        try {
-            // 2. Data Mapping (Resiliency for different actors)
-            const instagramUrl = item.url || (item.shortcode ? `https://www.instagram.com/p/${item.shortcode}/` : null);
+  if (cachedRun && cachedRun.rawData) {
+    console.log(`[Ingester] Using cached scraping results from run ${cachedRun.id}`);
+    items = cachedRun.rawData as any[];
+    runId = cachedRun.id;
+  } else {
+    const scrapeResult = await runInstagramScraper(username, maxPosts);
+    items = scrapeResult.items;
+    actorRunId = scrapeResult.actorRunId;
 
-            if (!instagramUrl) {
-                console.warn(`[Ingester] Skipping item without URL/Shortcode: ${JSON.stringify(item)}`);
-                continue;
-            }
+    // Create internal run record
+    const run = await prisma.scrapingRun.create({
+      data: {
+        username,
+        actorRunId: scrapeResult.actorRunId,
+        datasetId: scrapeResult.datasetId,
+        rawData: items as any,
+        status: 'completed',
+      },
+    });
+    runId = run.id;
+  }
 
-            const instagramId = item.id || item.shortcode;
-            const postUsername = item.account_username || item.ownerUsername || username;
-            const takenAt = item.posted ? new Date(item.posted) : (item.timestamp ? new Date(item.timestamp) : new Date());
-            const likes = item.likes ?? item.likesCount ?? 0;
-            const comments = item.comments ?? item.commentsCount ?? 0;
-            const videoUrl = (item.video_links && item.video_links.length > 0) ? item.video_links[0] : item.videoUrl;
+  console.log(`[Ingester] Processing ${items.length} posts. Saving to DB...`);
 
-            // 3. Upsert Post
-            const post = await prisma.post.upsert({
-                where: { instagramUrl: instagramUrl },
-                update: {
-                    likes,
-                    comments,
-                    instagramId,
-                    username: postUsername,
-                    runId: runId, // Link to the latest run
-                },
-                create: {
-                    instagramId,
-                    instagramUrl: instagramUrl,
-                    username: postUsername,
-                    caption: item.caption,
-                    postedAt: takenAt,
-                    likes,
-                    comments,
-                    runId: runId,
-                },
-                include: {
-                    transcripts: true,
-                    media: true
-                }
-            });
+  let queuedCount = 0;
 
-            // 4. Skip if already fully processed (has transcript)
-            if (post.transcripts.length > 0) {
-                console.log(`[Ingester] Skipping already processed post: ${post.instagramUrl}`);
-                continue;
-            }
+  for (const item of items) {
+    try {
+      // 2. Data Mapping (Resiliency for different actors)
+      const instagramUrl =
+        item.url || (item.shortcode ? `https://www.instagram.com/p/${item.shortcode}/` : null);
 
-            // 5. Handle Media
-            const isVideo = item.type === 'Video' || !!videoUrl;
-            const imageUrl = item.displayUrl || item.thumbnail || (item.images && item.images.length > 0 ? item.images[0] : null);
+      if (!instagramUrl) {
+        console.warn(`[Ingester] Skipping item without URL/Shortcode: ${JSON.stringify(item)}`);
+        continue;
+      }
 
-            if (isVideo && videoUrl) {
-                const existingMedia = post.media.find(m => m.type === 'video');
+      const instagramId = item.id || item.shortcode;
+      const postUsername = item.account_username || item.ownerUsername || username;
+      const takenAt = item.posted
+        ? new Date(item.posted)
+        : item.timestamp
+          ? new Date(item.timestamp)
+          : new Date();
+      const likes = item.likes ?? item.likesCount ?? 0;
+      const comments = item.comments ?? item.commentsCount ?? 0;
+      const videoUrl =
+        item.video_links && item.video_links.length > 0 ? item.video_links[0] : item.videoUrl;
 
-                if (!existingMedia) {
-                    await prisma.media.create({
-                        data: {
-                            postId: post.id,
-                            type: 'video',
-                            storageUrl: videoUrl,
-                        }
-                    });
-                }
+      // 3. Upsert Post
+      const post = await prisma.post.upsert({
+        where: { instagramUrl: instagramUrl },
+        update: {
+          likes,
+          comments,
+          instagramId,
+          username: postUsername,
+          runId: runId, // Link to the latest run
+        },
+        create: {
+          instagramId,
+          instagramUrl: instagramUrl,
+          username: postUsername,
+          caption: item.caption,
+          postedAt: takenAt,
+          likes,
+          comments,
+          runId: runId,
+        },
+        include: {
+          transcripts: true,
+          media: true,
+        },
+      });
 
-                await processingQueue.add('transcribe-video', {
-                    postId: post.id,
-                    videoUrl: videoUrl,
-                    instagramUrl: instagramUrl
-                }, {
-                    attempts: 3,
-                    backoff: {
-                        type: 'exponential',
-                        delay: 5000,
-                    }
-                });
-                queuedCount++;
-            } else if (imageUrl) {
-                // Store image media if not video
-                const existingMedia = post.media.find(m => m.type === 'image');
-                if (!existingMedia) {
-                    await prisma.media.create({
-                        data: {
-                            postId: post.id,
-                            type: 'image',
-                            storageUrl: imageUrl,
-                        }
-                    });
-                }
-            }
-        } catch (postError) {
-            console.error(`[Ingester] Failed to process individual post: ${item.url || item.shortcode}`, postError);
+      // 4. Skip if already fully processed (has transcript)
+      if (post.transcripts.length > 0) {
+        console.log(`[Ingester] Skipping already processed post: ${post.instagramUrl}`);
+        continue;
+      }
+
+      // 5. Handle Media
+      const isVideo = item.type === 'Video' || !!videoUrl;
+      const imageUrl =
+        item.displayUrl ||
+        item.thumbnail ||
+        (item.images && item.images.length > 0 ? item.images[0] : null);
+
+      if (isVideo && videoUrl) {
+        const existingMedia = post.media.find((m) => m.type === 'video');
+
+        if (!existingMedia) {
+          await prisma.media.create({
+            data: {
+              postId: post.id,
+              type: 'video',
+              storageUrl: videoUrl,
+            },
+          });
         }
-    }
 
-    console.log(`[Ingester] Finished. Queued ${queuedCount} videos for processing.`);
-    return { found: items.length, queued: queuedCount, runId };
+        await processingQueue.add(
+          'transcribe-video',
+          {
+            postId: post.id,
+            videoUrl: videoUrl,
+            instagramUrl: instagramUrl,
+          },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 5000,
+            },
+          },
+        );
+        queuedCount++;
+      } else if (imageUrl) {
+        // Store image media if not video
+        const existingMedia = post.media.find((m) => m.type === 'image');
+        if (!existingMedia) {
+          await prisma.media.create({
+            data: {
+              postId: post.id,
+              type: 'image',
+              storageUrl: imageUrl,
+            },
+          });
+        }
+      }
+    } catch (postError) {
+      console.error(
+        `[Ingester] Failed to process individual post: ${item.url || item.shortcode}`,
+        postError,
+      );
+    }
+  }
+
+  console.log(`[Ingester] Finished. Queued ${queuedCount} videos for processing.`);
+  return { found: items.length, queued: queuedCount, runId };
 };
