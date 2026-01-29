@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+storage/
+package-lock.json
+dashboard/dist/
+dashboard/node_modules/
+src/generated/
