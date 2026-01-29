@@ -57,7 +57,7 @@ export interface ApifyProfileInfo {
 export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo | null> => {
     console.log(`[Apify] Fetching profile info for ${username} with actor lezdhAFfa4H5zAb2A...`);
     const run = await client.actor("lezdhAFfa4H5zAb2A").call({
-        usernames: [username],
+        handles: [username],
     });
 
     console.log(`[Apify] Profile scrape finished. Dataset: ${run.defaultDatasetId}`);
