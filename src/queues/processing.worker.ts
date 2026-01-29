@@ -32,10 +32,15 @@ export const processingWorker = new Worker('processing-queue', async (job: Job<P
     const audioPath = path.join(config.paths.temp, `${uniqueId}.mp3`);
 
     try {
+
         // 1. Download Video
-        console.log(`[Worker] Downloading video...`);
-        const response = await fetch(videoUrl);
-        if (!response.ok) throw new Error(`Failed to fetch video: ${response.statusText}`);
+        console.log(`[Worker] Downloading video: ${videoUrl}`);
+        const response = await fetch(videoUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'
+            }
+        });
+        if (!response.ok) throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
         // @ts-ignore
         await pipeline(response.body, createWriteStream(videoPath));
 
