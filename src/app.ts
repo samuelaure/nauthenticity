@@ -3,6 +3,7 @@ import { config } from './config';
 import { ingestProfile } from './modules/ingestion/ingester';
 import { prisma } from './db/prisma';
 import cors from '@fastify/cors';
+import { processingQueue } from './queues/processing.queue';
 import './queues/processing.worker'; // Register worker
 
 
@@ -39,6 +40,34 @@ fastify.post('/ingest', async (request, reply) => {
         });
 
     return { status: 'started', message: `Ingestion started for ${username}` };
+});
+
+fastify.get('/queue', async () => {
+    const [counts, active, waiting, failed] = await Promise.all([
+        processingQueue.getJobCounts(),
+        processingQueue.getActive(0, 50),
+        processingQueue.getWaiting(0, 50),
+        processingQueue.getFailed(0, 50)
+    ]);
+
+    const formatJob = (j: any) => ({
+        id: j.id,
+        name: j.name,
+        data: j.data,
+        timestamp: j.timestamp,
+        failedReason: j.failedReason,
+        progress: j.progress,
+        processedOn: j.processedOn,
+        finishedOn: j.finishedOn,
+        opts: j.opts,
+    });
+
+    return {
+        counts,
+        active: active.map(formatJob),
+        waiting: waiting.map(formatJob),
+        failed: failed.map(formatJob),
+    };
 });
 
 fastify.get('/accounts', async (request, reply) => {

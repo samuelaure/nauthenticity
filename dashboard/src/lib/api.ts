@@ -41,6 +41,39 @@ export interface AccountDetails extends Account {
     posts: Post[];
 }
 
+export interface Media {
+    id: string;
+    type: 'video' | 'image';
+    storageUrl: string;
+    duration?: number;
+}
+
+export interface QueueJob {
+    id: string;
+    name: string;
+    data: any;
+    timestamp: number;
+    failedReason?: string;
+    progress: number | any;
+    processedOn?: number;
+    finishedOn?: number;
+    opts: any;
+}
+
+export interface QueueStatus {
+    counts: {
+        waiting: number;
+        active: number;
+        completed: number;
+        failed: number;
+        delayed: number;
+        paused: number;
+    };
+    active: QueueJob[];
+    waiting: QueueJob[];
+    failed: QueueJob[];
+}
+
 export const getAccounts = async () => {
     const { data } = await api.get<Account[]>('/accounts');
     return data;
@@ -63,5 +96,10 @@ export const updatePost = async (id: string, updates: { caption?: string; transc
 
 export const ingestAccount = async (username: string) => {
     const { data } = await api.post('/ingest', { username });
+    return data;
+};
+
+export const getQueueStatus = async () => {
+    const { data } = await api.get<QueueStatus>('/queue');
     return data;
 };
