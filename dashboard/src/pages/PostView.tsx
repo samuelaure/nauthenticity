@@ -67,7 +67,7 @@ export const PostView = () => {
                 <div style={{ background: '#111', borderRadius: '12px', overflow: 'hidden', maxHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {video ? (
                         <video
-                            src={video.storageUrl.replace('c:\\Users\\Sam\\code\\nauthenticity\\storage', 'http://localhost:3000/content')}
+                            src={video.storageUrl.startsWith('http') ? video.storageUrl : `http://localhost:3000/content/${video.storageUrl.split(/[\\/]/).pop()}`}
                             controls
                             style={{ width: '100%', maxHeight: '100%' }}
                         />

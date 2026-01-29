@@ -60,7 +60,7 @@ export const AccountView = () => {
                             post.media[0].type === 'video' ? (
                                 <div style={{ position: 'relative', width: '100%', height: '100%' }}>
                                     <video
-                                        src={post.media[0].storageUrl.replace('c:\\Users\\Sam\\code\\nauthenticity\\storage', 'http://localhost:3000/content')}
+                                        src={post.media[0].storageUrl.startsWith('http') ? post.media[0].storageUrl : `http://localhost:3000/content/${post.media[0].storageUrl.split(/[\\/]/).pop()}`}
                                         className="post-media"
                                         muted
                                         loop
