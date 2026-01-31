@@ -39,6 +39,7 @@ export const runInstagramScraper = async (username: string, maxPosts = 10) => {
 
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
   return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     items: items as any as ApifyInstagramPost[],
     datasetId: run.defaultDatasetId,
     actorRunId: run.id,
@@ -69,6 +70,7 @@ export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo
 
   if (items.length === 0) return null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const item = items[0] as any;
   return {
     username: item.username,

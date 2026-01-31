@@ -51,18 +51,18 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
     orderBy: { createdAt: 'desc' },
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let items: any[] = [];
   let runId: string | undefined;
-  let actorRunId: string | undefined;
 
   if (cachedRun && cachedRun.rawData) {
     console.log(`[Ingester] Using cached scraping results from run ${cachedRun.id}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     items = cachedRun.rawData as any[];
     runId = cachedRun.id;
   } else {
     const scrapeResult = await runInstagramScraper(username, maxPosts);
     items = scrapeResult.items;
-    actorRunId = scrapeResult.actorRunId;
 
     // Create internal run record
     const run = await prisma.scrapingRun.create({
@@ -70,6 +70,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         username,
         actorRunId: scrapeResult.actorRunId,
         datasetId: scrapeResult.datasetId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rawData: items as any,
         status: 'completed',
       },
@@ -98,6 +99,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
 
       // Detect Collaboration / Origin
       const actualOwner = item.ownerUsername || item.account_username;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const collaborators: any[] = [];
 
       if (actualOwner && actualOwner !== username) {

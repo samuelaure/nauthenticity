@@ -141,6 +141,7 @@ export const processingWorker = new Worker(
                     data: {
                         postId,
                         text: finalTranscript.trim(),
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         json: fullResponse as any,
                     },
                 });

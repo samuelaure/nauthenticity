@@ -51,6 +51,7 @@ fastify.get('/queue', async () => {
     processingQueue.getFailed(0, 50),
   ]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formatJob = (j: any) => ({
     id: j.id,
     name: j.name,
@@ -220,4 +221,4 @@ const start = async () => {
   }
 };
 
-start();
+void start();
