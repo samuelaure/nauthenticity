@@ -1,3 +1,4 @@
+
 import { ApifyClient } from 'apify-client';
 import { config } from '../config';
 
@@ -7,40 +8,52 @@ const client = new ApifyClient({
 
 export interface ApifyInstagramPost {
   id: string;
-  shortcode?: string;
-  url?: string;
+  shortCode: string;
+  url: string;
   caption: string;
-  timestamp?: string; // ISO date (old actor)
-  posted?: string; // Human date (new actor)
-  likesCount?: number; // Old actor
-  commentsCount?: number; // Old actor
-  likes?: number; // New actor
-  comments?: number; // New actor
-  videoUrl?: string; // Old actor
-  video_links?: string[]; // New actor
-  displayUrl?: string; // Old actor
-  thumbnail?: string; // New actor
-  type?: string;
-  ownerUsername?: string; // Old actor
-  account_username?: string; // New actor
+  timestamp: string;
+  likesCount: number;
+  commentsCount: number;
+  displayUrl: string;
+  isVideo: boolean;
+  videoUrl?: string;
+  ownerUsername: string;
+  ownerId: string;
+  productType?: string;
 }
 
-// Post Scraper: https://console.apify.com/actors/gcfjdE6gC9K5aGsgi
-// perfectscrape/mass-instagram-profile-posts-scraper-results-based
-export const runInstagramScraper = async (username: string, maxPosts = 10) => {
-  console.log(`[Apify] Starting scrape for ${username} using perfectscrape/mass-instagram-profile-posts-scraper...`);
+// Actor: perfectscrape/mass-instagram-profile-posts-scraper-results-based
+// ID: gcfjdE6gC9K5aGsgi
+export const runInstagramScraper = async (username: string, maxPosts = 10): Promise<{ items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
+  console.log(`[Apify] Starting post scrape for ${username} using actor ${config.apify.instagramPostActorId}...`);
 
-  const run = await client.actor('gcfjdE6gC9K5aGsgi').call({
+  const run = await client.actor(config.apify.instagramPostActorId).call({
     username: [username],
     resultsLimit: maxPosts,
   });
 
-  console.log(`[Apify] Run finished. Dataset ID: ${run.defaultDatasetId}`);
+  console.log(`[Apify] Post scrape finished. Dataset ID: ${run.defaultDatasetId}`);
 
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
+
+  const mappedItems: ApifyInstagramPost[] = items.map((item: any) => ({
+    id: item.id,
+    shortCode: item.shortCode || item.short_code, // Handle possible snake_case
+    url: item.url,
+    caption: item.caption,
+    timestamp: item.timestamp,
+    likesCount: item.likesCount || item.likes_count || 0,
+    commentsCount: item.commentsCount || item.comments_count || 0,
+    displayUrl: item.displayUrl || item.display_url,
+    isVideo: item.is_video ?? false,
+    videoUrl: item.videoUrl || item.video_url, // Optional, might not be present in all results
+    ownerUsername: item.ownerUsername || item.owner_username,
+    ownerId: item.ownerId || item.owner_id,
+    productType: item.productType,
+  }));
+
   return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    items: items as any as ApifyInstagramPost[],
+    items: mappedItems,
     datasetId: run.defaultDatasetId,
     actorRunId: run.id,
   };
@@ -48,20 +61,25 @@ export const runInstagramScraper = async (username: string, maxPosts = 10) => {
 
 export interface ApifyProfileInfo {
   username: string;
+  fullName?: string;
+  biography?: string;
   profilePicUrl: string;
   profilePicUrlHD?: string;
-  biography?: string;
-  fullName?: string;
   followersCount?: number;
   followsCount?: number;
   postsCount?: number;
+  externalUrl?: string;
+  isBusinessAccount?: boolean;
+  verified?: boolean;
 }
 
-// Profile Scraper: https://console.apify.com/actors/lezdhAFfa4H5zAb2A
+// Actor: coderx/instagram-profile-scraper-bio-posts
+// ID: PP60E1JIfagMaQxIP
 export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo | null> => {
-  console.log(`[Apify] Fetching profile info for ${username} with actor lezdhAFfa4H5zAb2A...`);
-  // This actor typically uses 'usernames' as input
-  const run = await client.actor('lezdhAFfa4H5zAb2A').call({
+  console.log(`[Apify] Fetching profile info for ${username} with actor ${config.apify.instagramProfileActorId}...`);
+
+  // This actor strictly requires 'usernames' as an array
+  const run = await client.actor(config.apify.instagramProfileActorId).call({
     usernames: [username],
   });
 
@@ -70,16 +88,21 @@ export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo
 
   if (items.length === 0) return null;
 
+  // The actor returns the profile object as the first item
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const item = items[0] as any;
+
   return {
     username: item.username,
-    profilePicUrl: item.profilePicUrl || item.profile_pic_url,
-    profilePicUrlHD: item.profilePicUrlHD || item.hd_profile_pic_url_info?.url,
-    biography: item.biography,
     fullName: item.fullName || item.full_name,
+    biography: item.biography,
+    profilePicUrl: item.profilePicUrl || item.profile_pic_url,
+    profilePicUrlHD: item.hdProfilePicUrl || item.hd_profile_pic_url_info?.url,
     followersCount: item.followersCount || item.followers_count,
     followsCount: item.followsCount || item.following_count,
     postsCount: item.postsCount || item.media_count,
+    externalUrl: item.externalUrl || item.external_url,
+    isBusinessAccount: item.isBusinessAccount || item.is_business_account,
+    verified: item.verified || item.is_verified,
   };
 };
