@@ -25,12 +25,14 @@ export interface ApifyInstagramPost {
   account_username?: string; // New actor
 }
 
+// Post Scraper: https://console.apify.com/actors/gcfjdE6gC9K5aGsgi (apify/instagram-scraper)
 export const runInstagramScraper = async (username: string, maxPosts = 10) => {
-  console.log(`[Apify] Starting scrape for ${username} with optimized actor...`);
+  console.log(`[Apify] Starting scrape for ${username} using apify/instagram-scraper...`);
 
-  const run = await client.actor('apify/instagram-post-scraper').call({
-    username: [username],
+  const run = await client.actor('apify/instagram-scraper').call({
+    usernames: [username],
     resultsLimit: maxPosts,
+    resultsType: 'posts', // Ensure we get posts
   });
 
   console.log(`[Apify] Run finished. Dataset ID: ${run.defaultDatasetId}`);
@@ -54,10 +56,12 @@ export interface ApifyProfileInfo {
   postsCount?: number;
 }
 
+// Profile Scraper: https://console.apify.com/actors/lezdhAFfa4H5zAb2A
 export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo | null> => {
   console.log(`[Apify] Fetching profile info for ${username} with actor lezdhAFfa4H5zAb2A...`);
+  // This actor typically uses 'usernames' as input
   const run = await client.actor('lezdhAFfa4H5zAb2A').call({
-    handles: [username],
+    usernames: [username],
   });
 
   console.log(`[Apify] Profile scrape finished. Dataset: ${run.defaultDatasetId}`);
