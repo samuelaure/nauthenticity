@@ -182,6 +182,43 @@ export const PostView = () => {
             </div>
           </div>
 
+          {/* Collaborators */}
+          {post.collaborators && post.collaborators.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                marginBottom: '1rem',
+                padding: '0.75rem',
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+              }}
+            >
+              <span style={{ color: 'var(--text-secondary)' }}>Collab / Origin:</span>
+              {post.collaborators.map((c, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {c.profilePicUrl && (
+                    <img
+                      src={c.profilePicUrl}
+                      alt={c.username}
+                      style={{ width: '24px', height: '24px', borderRadius: '50%' }}
+                    />
+                  )}
+                  <a
+                    href={`https://instagram.com/${c.username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#fff', textDecoration: 'underline' }}
+                  >
+                    @{c.username}
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Stats */}
           <div
             style={{
