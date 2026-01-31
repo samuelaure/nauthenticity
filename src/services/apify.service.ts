@@ -25,14 +25,14 @@ export interface ApifyInstagramPost {
   account_username?: string; // New actor
 }
 
-// Post Scraper: https://console.apify.com/actors/gcfjdE6gC9K5aGsgi (apify/instagram-scraper)
+// Post Scraper: https://console.apify.com/actors/gcfjdE6gC9K5aGsgi
+// perfectscrape/mass-instagram-profile-posts-scraper-results-based
 export const runInstagramScraper = async (username: string, maxPosts = 10) => {
-  console.log(`[Apify] Starting scrape for ${username} using apify/instagram-scraper...`);
+  console.log(`[Apify] Starting scrape for ${username} using perfectscrape/mass-instagram-profile-posts-scraper...`);
 
-  const run = await client.actor('apify/instagram-scraper').call({
-    usernames: [username],
+  const run = await client.actor('gcfjdE6gC9K5aGsgi').call({
+    username: [username],
     resultsLimit: maxPosts,
-    resultsType: 'posts', // Ensure we get posts
   });
 
   console.log(`[Apify] Run finished. Dataset ID: ${run.defaultDatasetId}`);
