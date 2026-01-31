@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getAccount } from '../lib/api';
+import { getAccount, getMediaUrl } from '../lib/api';
 import { ArrowLeft, MessageCircle, Heart } from 'lucide-react';
 
 export const AccountView = () => {
@@ -43,7 +43,7 @@ export const AccountView = () => {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2rem' }}>
         <img
-          src={account.profileImageUrl || 'https://via.placeholder.com/100'}
+          src={getMediaUrl(account.profileImageUrl) || 'https://via.placeholder.com/100'}
           alt={account.username}
           style={{
             width: '80px',
@@ -108,7 +108,7 @@ export const AccountView = () => {
                 title={`Origin: ${post.collaborators[0].username}`}
               >
                 <img
-                  src={post.collaborators[0].profilePicUrl || 'https://via.placeholder.com/24'}
+                  src={getMediaUrl(post.collaborators[0].profilePicUrl) || 'https://via.placeholder.com/24'}
                   alt={post.collaborators[0].username}
                   style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
                 />

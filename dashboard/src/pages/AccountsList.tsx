@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAccounts, ingestAccount } from '../lib/api';
+import { getAccounts, ingestAccount, getMediaUrl } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Image as ImageIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -68,7 +68,7 @@ export const AccountsList = () => {
           >
             <div className="profile-header">
               <img
-                src={account.profileImageUrl || 'https://via.placeholder.com/64'}
+                src={getMediaUrl(account.profileImageUrl) || 'https://via.placeholder.com/64'}
                 alt={account.username}
                 className="avatar"
               />

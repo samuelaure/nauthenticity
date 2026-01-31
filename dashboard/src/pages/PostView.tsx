@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getPost, updatePost } from '../lib/api';
+import { getPost, updatePost, getMediaUrl } from '../lib/api';
 import {
   ArrowLeft,
   ArrowRight,
@@ -108,21 +108,18 @@ export const PostView = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            position: 'relative',
           }}
         >
           {video ? (
             <video
-              src={
-                video.storageUrl.startsWith('http')
-                  ? video.storageUrl
-                  : `http://localhost:3000/content/${video.storageUrl.split(/[\\/]/).pop()}`
-              }
+              src={getMediaUrl(video.storageUrl)}
               controls
               style={{ width: '100%', maxHeight: '100%' }}
             />
           ) : (
             <img
-              src={image?.storageUrl || 'https://via.placeholder.com/400'}
+              src={getMediaUrl(image?.storageUrl) || 'https://via.placeholder.com/400'}
               alt="Post Media"
               style={{ width: '100%', height: 'auto', display: 'block' }}
             />
@@ -201,7 +198,7 @@ export const PostView = () => {
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   {c.profilePicUrl && (
                     <img
-                      src={c.profilePicUrl}
+                      src={getMediaUrl(c.profilePicUrl)}
                       alt={c.username}
                       style={{ width: '24px', height: '24px', borderRadius: '50%' }}
                     />

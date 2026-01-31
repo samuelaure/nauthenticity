@@ -1,10 +1,17 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3000';
+export const API_URL = 'http://localhost:3000';
 
 export const api = axios.create({
   baseURL: API_URL,
 });
+
+export const getMediaUrl = (url?: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('/content')) return `${API_URL}${url}`;
+  return url;
+};
 
 export interface Account {
   username: string;
