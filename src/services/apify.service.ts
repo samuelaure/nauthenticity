@@ -36,21 +36,47 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
 
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
-  const mappedItems: ApifyInstagramPost[] = items.map((item: any) => ({
-    id: item.id,
-    shortCode: item.shortCode || item.short_code, // Handle possible snake_case
-    url: item.url,
-    caption: item.caption,
-    timestamp: item.timestamp,
-    likesCount: item.likesCount || item.likes_count || 0,
-    commentsCount: item.commentsCount || item.comments_count || 0,
-    displayUrl: item.displayUrl || item.display_url,
-    isVideo: item.is_video ?? false,
-    videoUrl: item.videoUrl || item.video_url, // Optional, might not be present in all results
-    ownerUsername: item.ownerUsername || item.owner_username,
-    ownerId: item.ownerId || item.owner_id,
-    productType: item.productType,
-  }));
+  interface RawApifyPost {
+    id: string;
+    shortCode?: string;
+    short_code?: string;
+    url: string;
+    caption: string;
+    timestamp: string;
+    likesCount?: number;
+    likes_count?: number;
+    commentsCount?: number;
+    comments_count?: number;
+    displayUrl?: string;
+    display_url?: string;
+    is_video?: boolean; // Snake case handled by manual check usually, but consistency check
+    videoUrl?: string;
+    video_url?: string;
+    ownerUsername?: string;
+    owner_username?: string;
+    ownerId?: string;
+    owner_id?: string;
+    productType?: string;
+  }
+
+  const mappedItems: ApifyInstagramPost[] = items.map((itemUnknown: unknown) => {
+    const item = itemUnknown as RawApifyPost;
+    return {
+      id: item.id as string,
+      shortCode: (item.shortCode || item.short_code) as string,
+      url: item.url as string,
+      caption: item.caption as string,
+      timestamp: item.timestamp as string,
+      likesCount: (item.likesCount || item.likes_count || 0) as number,
+      commentsCount: (item.commentsCount || item.comments_count || 0) as number,
+      displayUrl: (item.displayUrl || item.display_url) as string,
+      isVideo: (item.is_video ?? false) as boolean,
+      videoUrl: (item.videoUrl || item.video_url) as string | undefined,
+      ownerUsername: (item.ownerUsername || item.owner_username) as string,
+      ownerId: (item.ownerId || item.owner_id) as string,
+      productType: item.productType as string | undefined,
+    };
+  });
 
   return {
     items: mappedItems,
@@ -86,17 +112,39 @@ export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo
   console.log(`[Apify] Profile scrape finished. Dataset: ${run.defaultDatasetId}`);
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
+  interface RawApifyProfile {
+    username: string;
+    fullName?: string;
+    full_name?: string;
+    biography?: string;
+    profilePicUrl?: string;
+    profile_pic_url?: string;
+    hdProfilePicUrl?: string;
+    hd_profile_pic_url_info?: { url: string };
+    followersCount?: number;
+    followers_count?: number;
+    followsCount?: number;
+    following_count?: number;
+    postsCount?: number;
+    media_count?: number;
+    externalUrl?: string;
+    external_url?: string;
+    isBusinessAccount?: boolean;
+    is_business_account?: boolean;
+    verified?: boolean;
+    is_verified?: boolean;
+  }
+
   if (items.length === 0) return null;
 
   // The actor returns the profile object as the first item
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const item = items[0] as any;
+  const item = items[0] as unknown as RawApifyProfile;
 
   return {
     username: item.username,
     fullName: item.fullName || item.full_name,
     biography: item.biography,
-    profilePicUrl: item.profilePicUrl || item.profile_pic_url,
+    profilePicUrl: (item.profilePicUrl || item.profile_pic_url) as string, // Cast to string as fallback or ensure logic handles undefined if needed, but per type def it is string
     profilePicUrlHD: item.hdProfilePicUrl || item.hd_profile_pic_url_info?.url,
     followersCount: item.followersCount || item.followers_count,
     followsCount: item.followsCount || item.following_count,

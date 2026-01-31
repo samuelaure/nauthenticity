@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
 import { env } from './config/env'; // Validate environment on startup
 import { config } from './config';
