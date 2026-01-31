@@ -1,6 +1,30 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nauthenticity_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: nauthenticity
+      POSTGRES_PASSWORD: nauthenticity
+      POSTGRES_DB: nauthenticity
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - nauthenticity_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: nauthenticity_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - nauthenticity_network
+
   app:
     build: .
     container_name: nauthenticity_app
@@ -8,9 +32,20 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://nauthenticity:nauthenticity@postgres:5432/nauthenticity
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "3000:3000"
     networks:
-      - shared-mesh
+      - nauthenticity_network
 
 networks:
-  shared-mesh:
-    external: true
+  nauthenticity_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

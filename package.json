@@ -3,18 +3,32 @@
   "version": "1.0.0",
   "description": "**naŭthenticity** is an AI-powered content intelligence engine that turns Instagram profiles into structured, searchable knowledge. It extracts posts, transcribes media, analyzes hooks, pillars, and strategy, then builds a vectorized brain to generate high-performing content in the creator’s style.",
   "main": "index.js",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/app.js",
     "dev": "nodemon --exec ts-node src/app.ts",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "ts-node src/db/seed.ts"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/samuelaure/nauthenticity.git"
   },
   "keywords": [],
-  "author": "Samuel Aure",
+  "author": {
+    "name": "Samuel Aure",
+    "url": "https://www.samuelaure.com"
+  },
   "license": "Proprietary",
   "bugs": {
     "url": "https://github.com/samuelaure/nauthenticity/issues"
@@ -30,18 +44,26 @@
     "fastify": "^5.7.2",
     "fluent-ffmpeg": "^2.1.3",
     "ioredis": "^5.9.2",
-    "openai": "^6.16.0"
+    "openai": "^6.16.0",
+    "zod": "^4.3.6"
   },
   "prisma": {
     "schema": "src/db/schema.prisma"
   },
   "devDependencies": {
     "@types/fluent-ffmpeg": "^2.1.28",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.0.10",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.2.0",
     "nodemon": "^3.1.11",
     "prettier": "^3.8.1",
     "prisma": "5.22.0",
     "rimraf": "^6.1.2",
+    "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

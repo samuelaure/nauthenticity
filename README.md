@@ -1,7 +1,5 @@
 # naŭthenticity — AI Content Intelligence
 
-# nauthenticity
-
 **naŭthenticity** is an AI-powered content intelligence engine that turns Instagram profiles into structured, searchable knowledge.
 
 ## Quick Start
@@ -13,14 +11,34 @@
     cd dashboard && npm install && cd ..
     ```
 
-2.  **Database Setup**
+2.  **Environment Setup**
+    
+    Create a `.env` file in the root directory:
 
-    ```bash
-    npx prisma generate
-    npx prisma db push
+    ```env
+    NODE_ENV=development
+    PORT=3000
+    DATABASE_URL="postgresql://nauthenticity:nauthenticity@localhost:5432/nauthenticity"
+    REDIS_HOST=localhost
+    REDIS_PORT=6379
+    APIFY_TOKEN="your_apify_token"
+    OPENAI_API_KEY="your_openai_key"
     ```
 
-3.  **Run Application**
+3.  **Start Infrastructure**
+
+    ```bash
+    docker-compose up -d
+    ```
+
+4.  **Database Setup**
+
+    ```bash
+    npm run prisma:generate
+    npm run prisma:migrate
+    ```
+
+5.  **Run Application**
     - **Backend API**: `npm run dev` (Runs on http://localhost:3000)
     - **Dashboard**: `cd dashboard && npm run dev` (Runs on http://localhost:5173)
 
@@ -30,10 +48,10 @@
 
 ### Prerequisites
 
-- **Node.js**: v20+
-- **Docker & Docker Compose**: For running the database and Redis services.
-- **Apify Account**: For Instagram scraping.
-- **OpenAI API Key**: For content analysis and embedding.
+- **Node.js**: v20+ (LTS)
+- **Docker & Docker Compose**: For running PostgreSQL and Redis locally
+- **Apify Account**: For Instagram scraping
+- **OpenAI API Key**: For content analysis and embedding
 
 ### Installation
 
@@ -51,25 +69,24 @@
     ```
 
 3.  **Environment Configuration:**
-    Create a `.env` file in the root directory:
-
-    ```env
-    PORT=3000
-    DATABASE_URL="postgresql://user:password@localhost:5432/nauthenticity?schema=public"
-    REDIS_URL="redis://localhost:6379"
-    APIFY_TOKEN="your_apify_token"
-    OPENAI_API_KEY="your_openai_key"
-    ```
+    
+    See Quick Start section above for `.env` setup.
 
 4.  **Start Infrastructure:**
+
+    The default `docker-compose.yml` includes PostgreSQL and Redis for standalone development:
 
     ```bash
     docker-compose up -d
     ```
 
+    For server deployment with shared infrastructure, create a `docker-compose.override.yml` (see deployment docs).
+
 5.  **Run Database Migrations:**
+    
     ```bash
-    npx prisma migrate dev
+    npm run prisma:generate
+    npm run prisma:migrate
     ```
 
 ### Running the Application
@@ -81,9 +98,37 @@
   ```
 
 - **Production Build:**
+  
   ```bash
   npm run build
   npm start
+  ```
+
+### Quality & Testing
+
+- **Type Check:**
+  
+  ```bash
+  npm run type-check
+  ```
+
+- **Lint:**
+  
+  ```bash
+  npm run lint
+  ```
+
+- **Format:**
+  
+  ```bash
+  npm run format
+  ```
+
+- **Test:**
+  
+  ```bash
+  npm test
+  npm run test:watch
   ```
 
 ## 🏗 System Architecture
