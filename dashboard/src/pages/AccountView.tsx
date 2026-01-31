@@ -86,8 +86,44 @@ export const AccountView = () => {
             to={`/posts/${post.id}`}
             key={post.id}
             className="post-card"
-            style={{ textDecoration: 'none' }}
+            style={{ textDecoration: 'none', position: 'relative' }}
           >
+            {/* Collaborator/Origin Badge */}
+            {post.collaborators && post.collaborators.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  left: 8,
+                  zIndex: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(4px)',
+                  padding: '4px 8px 4px 4px',
+                  borderRadius: '100px',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+                title={`Origin: ${post.collaborators[0].username}`}
+              >
+                <img
+                  src={post.collaborators[0].profilePicUrl || 'https://via.placeholder.com/24'}
+                  alt={post.collaborators[0].username}
+                  style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
+                />
+                <span
+                  style={{
+                    color: 'white',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  {post.collaborators[0].username}
+                </span>
+              </div>
+            )}
+
             {post.media && post.media.length > 0 ? (
               post.media[0].type === 'video' ? (
                 <div style={{ position: 'relative', width: '100%', height: '100%' }}>

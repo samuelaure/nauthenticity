@@ -93,7 +93,25 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
       }
 
       const instagramId = item.id || item.shortcode;
-      const postUsername = item.account_username || item.ownerUsername || username;
+      // Force the post to belong to the account we are scraping (User Request)
+      const postUsername = username;
+
+      // Detect Collaboration / Origin
+      const actualOwner = item.ownerUsername || item.account_username;
+      const collaborators: any[] = [];
+
+      if (actualOwner && actualOwner !== username) {
+        console.log(`[Ingester] Detected collaboration/origin: ${actualOwner}`);
+        collaborators.push({
+          username: actualOwner,
+          profilePicUrl: item.owner?.profile_pic_url || item.owner?.profilePicUrl,
+          role: 'origin'
+        });
+      }
+
+      // Also check tagged users that might be collaborators? 
+      // For now, focusing on the Owner vs Context distinction.
+
       const takenAt = item.posted
         ? new Date(item.posted)
         : item.timestamp
@@ -111,13 +129,15 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
           likes,
           comments,
           instagramId,
-          username: postUsername,
+          username: postUsername, // Link to processed account
+          collaborators: collaborators.length > 0 ? collaborators : undefined,
           runId: runId, // Link to the latest run
         },
         create: {
           instagramId,
           instagramUrl: instagramUrl,
           username: postUsername,
+          collaborators: collaborators.length > 0 ? collaborators : undefined,
           caption: item.caption,
           postedAt: takenAt,
           likes,

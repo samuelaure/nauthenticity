@@ -23,6 +23,8 @@ model Post {
   views           Int?
   engagementScore Float?
   
+  collaborators   Json?    // Stores collaborator info { username, profilePicUrl, role? }[]
+  
   runId           String?
   run             ScrapingRun? @relation(fields: [runId], references: [id])
 

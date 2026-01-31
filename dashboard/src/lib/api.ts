@@ -33,6 +33,7 @@ export interface Post {
   username?: string;
   media: Media[];
   transcripts?: Transcript[];
+  collaborators?: { username: string; profilePicUrl?: string; role?: string }[];
   newerPostId?: string | null;
   olderPostId?: string | null;
 }
