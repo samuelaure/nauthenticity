@@ -1,19 +1,21 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { env } from './env';
+
 export const config = {
-  port: parseInt(process.env.PORT || '3000'),
-  databaseUrl: process.env.DATABASE_URL,
+  port: env.PORT,
+  databaseUrl: env.DATABASE_URL,
   redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379'),
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
   },
   apify: {
-    token: process.env.APIFY_TOKEN,
-    instagramActorId: 'apify/instagram-scraper',
+    token: env.APIFY_TOKEN,
+    instagramActorId: 'gcfjdE6gC9K5aGsgi', // perfectscrape/mass-instagram-profile-posts-scraper
   },
   openai: {
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: env.OPENAI_API_KEY,
   },
   paths: {
     temp: './temp',

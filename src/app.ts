@@ -1,10 +1,13 @@
 import Fastify from 'fastify';
+import { env } from './config/env'; // Validate environment on startup
 import { config } from './config';
 import { ingestProfile } from './modules/ingestion/ingester';
 import { prisma } from './db/prisma';
 import cors from '@fastify/cors';
 import { processingQueue } from './queues/processing.queue';
 import './queues/processing.worker'; // Register worker
+
+console.log(`[App] Environment validated. Running in ${env.NODE_ENV} mode on port ${env.PORT}`);
 
 const fastify = Fastify({ logger: true });
 
