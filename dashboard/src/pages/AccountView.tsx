@@ -128,11 +128,7 @@ export const AccountView = () => {
               post.media[0].type === 'video' ? (
                 <div style={{ position: 'relative', width: '100%', height: '100%' }}>
                   <video
-                    src={
-                      post.media[0].storageUrl.startsWith('http')
-                        ? post.media[0].storageUrl
-                        : `http://localhost:3000/content/${post.media[0].storageUrl.split(/[\\/]/).pop()}`
-                    }
+                    src={getMediaUrl(post.media[0].storageUrl)}
                     className="post-media"
                     muted
                     loop
@@ -153,7 +149,7 @@ export const AccountView = () => {
                   </div>
                 </div>
               ) : (
-                <img src={post.media[0].storageUrl} alt="Post" className="post-media" />
+                <img src={getMediaUrl(post.media[0].storageUrl)} alt="Post" className="post-media" />
               )
             ) : (
               <div

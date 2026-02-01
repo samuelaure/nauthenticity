@@ -65,7 +65,10 @@ model Media {
   type        String   // "video" | "image"
   storageUrl  String   // Local path or R2 URL
   duration    Float?
-  
+  index       Int      @default(0)
+
+  transcript  Transcript?
+
   createdAt   DateTime @default(now())
 }
 
@@ -73,6 +76,10 @@ model Transcript {
   id          String   @id @default(uuid())
   postId      String
   post        Post     @relation(fields: [postId], references: [id])
+
+  mediaId     String?  @unique
+  media       Media?   @relation(fields: [mediaId], references: [id])
+
   text        String
   originalText String? // Stores original Whisper text if edited
   json        Json?    // Full Whisper response with timestamps

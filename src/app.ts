@@ -78,8 +78,10 @@ fastify.get('/queue', async () => {
 
 fastify.get('/accounts', async (request, reply) => {
   try {
-    // @ts-ignore
     const accounts = await prisma.account.findMany({
+      where: {
+        posts: { some: {} },
+      },
       orderBy: { lastScrapedAt: 'desc' },
       include: { _count: { select: { posts: true } } },
     });

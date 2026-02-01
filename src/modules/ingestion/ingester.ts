@@ -13,7 +13,6 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
     try {
       const profile = await getProfileInfo(username);
       if (profile) {
-        // @ts-ignore
         account = await prisma.account.create({
           data: {
             username: profile.username,
@@ -25,19 +24,25 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         console.warn(
           `[Ingester] Could not fetch profile info for ${username}. Creating placeholder.`,
         );
-        // @ts-ignore
         account = await prisma.account.create({
           data: { username, lastScrapedAt: new Date() },
         });
       }
     } catch (e) {
       console.error(`[Ingester] Error fetching profile info: ${e}`);
-      // Fallback
-      // @ts-ignore
       account = await prisma.account.create({
         data: { username, lastScrapedAt: new Date() },
       });
     }
+  }
+
+  // Queue Profile Image download if not local
+  if (account.profileImageUrl && !account.profileImageUrl.startsWith('/content/')) {
+    await processingQueue.add('process-profile-image', {
+      username: account.username,
+      url: account.profileImageUrl,
+      contextUsername: username // The account currently being scraped
+    });
   }
 
   // 1. Check for cached run (within last 24 hours) to avoid duplicated Apify costs
@@ -104,11 +109,34 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
 
       if (actualOwner && actualOwner !== username) {
         console.log(`[Ingester] Detected collaboration/origin: ${actualOwner}`);
+        const collabProfileUrl = item.owner?.profile_pic_url || item.owner?.profilePicUrl;
+
         collaborators.push({
           username: actualOwner,
-          profilePicUrl: item.owner?.profile_pic_url || item.owner?.profilePicUrl,
+          profilePicUrl: collabProfileUrl,
           role: 'origin'
         });
+
+        // Ensure collaborator has an Account record (but no posts, so it's hidden)
+        let collabAccount = await prisma.account.findUnique({ where: { username: actualOwner } });
+        if (!collabAccount) {
+          collabAccount = await prisma.account.create({
+            data: {
+              username: actualOwner,
+              profileImageUrl: collabProfileUrl,
+              lastScrapedAt: new Date()
+            }
+          });
+        }
+
+        // Queue collab profile image
+        if (collabProfileUrl && (!collabAccount.profileImageUrl || !collabAccount.profileImageUrl.startsWith('/content/'))) {
+          await processingQueue.add('process-profile-image', {
+            username: actualOwner,
+            url: collabProfileUrl,
+            contextUsername: username // Store inside the currently scraped account folder
+          });
+        }
       }
 
       // Also check tagged users that might be collaborators? 
@@ -152,13 +180,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         },
       });
 
-      // 4. Skip if already fully processed (has transcript)
-      if (post.transcripts.length > 0) {
-        console.log(`[Ingester] Skipping already processed post: ${post.instagramUrl}`);
-        continue;
-      }
-
-      // 5. Handle Media
+      // 4. Handle Media
       // Unified media handling: Prefer sidecarMedia, fallback to legacy fields
       let mediaItems: { type: 'image' | 'video'; url: string }[] = item.sidecarMedia || [];
 
@@ -177,35 +199,52 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         }
       }
 
-      for (const media of mediaItems) {
+      if (mediaItems.length === 0) {
+        console.warn(`[Ingester] Post ${instagramId} has NO media items.`);
+      }
+
+      for (let i = 0; i < mediaItems.length; i++) {
+        const media = mediaItems[i];
         if (!media.url) continue;
 
-        // Check for duplicates
-        const exists = post.media.find((m) => m.storageUrl === media.url);
-        if (exists) continue;
+        // 5. Upsert Media
+        let mediaInDb = post.media.find((m) => m.index === i);
 
-        await prisma.media.create({
-          data: {
-            postId: post.id,
-            type: media.type,
-            storageUrl: media.url,
-          },
-        });
+        if (mediaInDb) {
+          // IMPORTANT: If we already have a local path, DO NOT overwrite with CDN link
+          if (!mediaInDb.storageUrl.startsWith('/content/')) {
+            mediaInDb = await prisma.media.update({
+              where: { id: mediaInDb.id },
+              data: { storageUrl: media.url }
+            });
+          }
+        } else {
+          // Create new with temporary CDN URL (to be replaced by worker)
+          mediaInDb = await prisma.media.create({
+            data: {
+              postId: post.id,
+              type: media.type,
+              storageUrl: media.url,
+              index: i,
+            },
+          });
+        }
 
-        if (media.type === 'video') {
+        // 6. Queue for Local Storage (Both Images and Videos)
+        // If it's already local, we skip
+        if (!mediaInDb.storageUrl.startsWith('/content/')) {
           await processingQueue.add(
-            'transcribe-video',
+            'process-media',
             {
               postId: post.id,
-              videoUrl: media.url,
-              instagramUrl: instagramUrl,
+              mediaId: mediaInDb.id,
+              url: media.url,
+              type: media.type,
+              username: postUsername // Ensure worker knows which folder to use
             },
             {
               attempts: 3,
-              backoff: {
-                type: 'exponential',
-                delay: 5000,
-              },
+              backoff: { type: 'exponential', delay: 5000 },
             },
           );
           queuedCount++;
