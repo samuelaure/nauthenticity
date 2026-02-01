@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Sanitize URL to remove accidental quotes, whitespace, or trailing semicolons
+const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export const API_URL = rawUrl.replace(/['";]/g, '').trim();
 
 export const api = axios.create({
   baseURL: API_URL,

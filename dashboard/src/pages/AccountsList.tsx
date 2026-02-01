@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAccounts, ingestAccount, getMediaUrl } from '../lib/api';
+import { getAccounts, ingestAccount, getMediaUrl, API_URL } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Image as ImageIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -8,7 +8,7 @@ import { useState } from 'react';
 export const AccountsList = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: accounts, isLoading } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
+  const { data: accounts, isLoading, isError, error } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
   const [newUsername, setNewUsername] = useState('');
 
   const ingestMutation = useMutation({
@@ -27,6 +27,7 @@ export const AccountsList = () => {
   };
 
   if (isLoading) return <div>Loading...</div>;
+  if (isError) return <div style={{ color: 'red', padding: '1rem' }}>Error loading accounts: {error.message}. Check if backend is running on {API_URL}</div>;
 
   return (
     <div>
@@ -60,7 +61,7 @@ export const AccountsList = () => {
       </div>
 
       <div className="accounts-grid">
-        {accounts?.map((account) => (
+        {Array.isArray(accounts) && accounts.map((account) => (
           <div
             key={account.username}
             className="account-card fade-in"
