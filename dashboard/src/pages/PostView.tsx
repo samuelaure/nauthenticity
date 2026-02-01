@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getPost, updatePost, getMediaUrl } from '../lib/api';
 import {
@@ -48,8 +48,7 @@ export const PostView = () => {
   if (isLoading) return <div>Loading...</div>;
   if (!post) return <div>Post not found</div>;
 
-  const video = post.media.find((m) => m.type === 'video');
-  const image = post.media.find((m) => m.type === 'image');
+
 
   return (
     <div className="fade-in" style={{ maxWidth: '1000px', margin: '0 auto' }}>
@@ -106,23 +105,146 @@ export const PostView = () => {
             overflow: 'hidden',
             maxHeight: '80vh',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
           }}
         >
-          {video ? (
-            <video
-              src={getMediaUrl(video.storageUrl)}
-              controls
-              style={{ width: '100%', maxHeight: '100%' }}
-            />
+          {post.media && post.media.length > 0 ? (
+            (() => {
+              const [currentIndex, setCurrentIndex] = useState(0);
+              const currentMedia = post.media[currentIndex];
+
+              // Filter valid media just in case
+              const validMedia = post.media.filter(m => m.storageUrl);
+              const totalSlides = validMedia.length;
+
+              // If logic updates, ensure index is valid
+              useEffect(() => {
+                if (currentIndex >= totalSlides) setCurrentIndex(0);
+              }, [totalSlides]);
+
+              const handleNext = () => setCurrentIndex((prev) => (prev + 1) % totalSlides);
+              const handlePrev = () => setCurrentIndex((prev) => (prev - 1 + totalSlides) % totalSlides);
+
+              return (
+                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                  {/* Media Content */}
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+                    {currentMedia.type === 'video' ? (
+                      <video
+                        src={getMediaUrl(currentMedia.storageUrl)}
+                        controls
+                        style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <img
+                        src={getMediaUrl(currentMedia.storageUrl)}
+                        alt={`Slide ${currentIndex + 1}`}
+                        style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Navigation Controls (Only if multiple items) */}
+                  {totalSlides > 1 && (
+                    <>
+                      <button
+                        onClick={handlePrev}
+                        style={{
+                          position: 'absolute',
+                          left: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'rgba(0,0,0,0.5)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '40px',
+                          height: '40px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          zIndex: 10
+                        }}
+                      >
+                        <ArrowLeft size={20} />
+                      </button>
+
+                      <button
+                        onClick={handleNext}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'rgba(0,0,0,0.5)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '40px',
+                          height: '40px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          zIndex: 10
+                        }}
+                      >
+                        <ArrowRight size={20} />
+                      </button>
+
+                      {/* Counter Badge */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '20px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontSize: '0.8rem',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        {currentIndex + 1} / {totalSlides}
+                      </div>
+
+                      {/* Dots Indicator */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '5px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          display: 'flex',
+                          gap: '6px'
+                        }}
+                      >
+                        {validMedia.map((_, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              width: '6px',
+                              height: '6px',
+                              borderRadius: '50%',
+                              background: idx === currentIndex ? '#fff' : 'rgba(255,255,255,0.3)',
+                              transition: 'background 0.2s'
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()
           ) : (
-            <img
-              src={getMediaUrl(image?.storageUrl) || 'https://via.placeholder.com/400'}
-              alt="Post Media"
-              style={{ width: '100%', height: 'auto', display: 'block' }}
-            />
+            <div style={{ padding: '2rem', color: '#666' }}>No media available</div>
           )}
         </div>
 

@@ -20,6 +20,7 @@ export interface ApifyInstagramPost {
   ownerUsername: string;
   ownerId: string;
   productType?: string;
+  sidecarMedia?: { type: 'image' | 'video'; url: string }[];
 }
 
 // Actor: perfectscrape/mass-instagram-profile-posts-scraper-results-based
@@ -49,7 +50,7 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
     comments_count?: number;
     displayUrl?: string;
     display_url?: string;
-    is_video?: boolean; // Snake case handled by manual check usually, but consistency check
+    is_video?: boolean;
     videoUrl?: string;
     video_url?: string;
     ownerUsername?: string;
@@ -57,10 +58,61 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
     ownerId?: string;
     owner_id?: string;
     productType?: string;
+
+    // Sidecar / Carousel fields
+    images?: string[]; // Array of image URLs
+    videoVideos?: string[]; // Sometimes used
+    carousel_media?: Array<{
+      type?: string;
+      image_versions2?: { candidates: { url: string }[] };
+      video_versions?: { url: string }[];
+      original_width?: number;
+      original_height?: number;
+    }>;
   }
 
   const mappedItems: ApifyInstagramPost[] = items.map((itemUnknown: unknown) => {
     const item = itemUnknown as RawApifyPost;
+
+    // Extract logical media items
+    const mediaItems: { type: 'image' | 'video'; url: string }[] = [];
+
+    // 1. Check for Carousel data first (highest fidelity)
+    if (item.carousel_media && Array.isArray(item.carousel_media) && item.carousel_media.length > 0) {
+      item.carousel_media.forEach(cm => {
+        if (cm.video_versions && cm.video_versions.length > 0) {
+          mediaItems.push({ type: 'video', url: cm.video_versions[0].url });
+        } else if (cm.image_versions2 && cm.image_versions2.candidates.length > 0) {
+          mediaItems.push({ type: 'image', url: cm.image_versions2.candidates[0].url });
+        }
+      });
+    }
+    // 2. Check for simple images array (often provided by this specific actor)
+    else if (item.images && Array.isArray(item.images) && item.images.length > 0) {
+      // If it's a video post, the first image is usually the thumbnail
+      // But if it's a sidecar of images, this array holds them.
+      // We need to be careful not to duplicate the thumbnail if it's a single video.
+
+      if ((item.is_video || item.videoUrl || item.video_url)) {
+        // It's a single video, handled below
+      } else {
+        // It's likely an image sidecar
+        item.images.forEach(imgUrl => mediaItems.push({ type: 'image', url: imgUrl }));
+      }
+    }
+
+    // 3. Fallback/Primary Single Media
+    // Ensure the main video/image is included if not already covered by carousel
+    if (mediaItems.length === 0) {
+      if (item.is_video || item.videoUrl || item.video_url) {
+        const vUrl = item.videoUrl || item.video_url;
+        if (vUrl) mediaItems.push({ type: 'video', url: vUrl });
+      } else {
+        const iUrl = item.displayUrl || item.display_url;
+        if (iUrl) mediaItems.push({ type: 'image', url: iUrl });
+      }
+    }
+
     return {
       id: item.id as string,
       shortCode: (item.shortCode || item.short_code) as string,
@@ -75,6 +127,7 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
       ownerUsername: (item.ownerUsername || item.owner_username) as string,
       ownerId: (item.ownerId || item.owner_id) as string,
       productType: item.productType as string | undefined,
+      sidecarMedia: mediaItems,
     };
   });
 

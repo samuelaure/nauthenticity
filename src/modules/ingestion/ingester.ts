@@ -159,52 +159,56 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
       }
 
       // 5. Handle Media
-      const isVideo = item.type === 'Video' || !!videoUrl;
-      const imageUrl =
-        item.displayUrl ||
-        item.thumbnail ||
-        (item.images && item.images.length > 0 ? item.images[0] : null);
+      // Unified media handling: Prefer sidecarMedia, fallback to legacy fields
+      let mediaItems: { type: 'image' | 'video'; url: string }[] = item.sidecarMedia || [];
 
-      if (isVideo && videoUrl) {
-        const existingMedia = post.media.find((m) => m.type === 'video');
+      // Fallback for cached runs or legacy data without sidecarMedia
+      if (mediaItems.length === 0) {
+        const isVideo = item.type === 'Video' || !!videoUrl;
+        const legacyImageUrl =
+          item.displayUrl ||
+          item.thumbnail ||
+          (item.images && item.images.length > 0 ? item.images[0] : null);
 
-        if (!existingMedia) {
-          await prisma.media.create({
-            data: {
-              postId: post.id,
-              type: 'video',
-              storageUrl: videoUrl,
-            },
-          });
+        if (isVideo && videoUrl) {
+          mediaItems.push({ type: 'video', url: videoUrl });
+        } else if (legacyImageUrl) {
+          mediaItems.push({ type: 'image', url: legacyImageUrl });
         }
+      }
 
-        await processingQueue.add(
-          'transcribe-video',
-          {
+      for (const media of mediaItems) {
+        if (!media.url) continue;
+
+        // Check for duplicates
+        const exists = post.media.find((m) => m.storageUrl === media.url);
+        if (exists) continue;
+
+        await prisma.media.create({
+          data: {
             postId: post.id,
-            videoUrl: videoUrl,
-            instagramUrl: instagramUrl,
+            type: media.type,
+            storageUrl: media.url,
           },
-          {
-            attempts: 3,
-            backoff: {
-              type: 'exponential',
-              delay: 5000,
-            },
-          },
-        );
-        queuedCount++;
-      } else if (imageUrl) {
-        // Store image media if not video
-        const existingMedia = post.media.find((m) => m.type === 'image');
-        if (!existingMedia) {
-          await prisma.media.create({
-            data: {
+        });
+
+        if (media.type === 'video') {
+          await processingQueue.add(
+            'transcribe-video',
+            {
               postId: post.id,
-              type: 'image',
-              storageUrl: imageUrl,
+              videoUrl: media.url,
+              instagramUrl: instagramUrl,
             },
-          });
+            {
+              attempts: 3,
+              backoff: {
+                type: 'exponential',
+                delay: 5000,
+              },
+            },
+          );
+          queuedCount++;
         }
       }
     } catch (postError) {
