@@ -12,7 +12,7 @@
     ```
 
 2.  **Environment Setup**
-    
+
     Create a `.env` file in the root directory:
 
     ```env
@@ -69,7 +69,7 @@
     ```
 
 3.  **Environment Configuration:**
-    
+
     See Quick Start section above for `.env` setup.
 
 4.  **Start Infrastructure:**
@@ -80,10 +80,22 @@
     docker-compose up -d
     ```
 
-    For server deployment with shared infrastructure, create a `docker-compose.override.yml` (see deployment docs).
+    For server deployment or custom local configurations, copy the example override file:
+
+    ```bash
+    cp docker-compose.override.yml.example docker-compose.override.yml
+    ```
+
+    Edit `docker-compose.override.yml` to uncomment ports or set environment variables as needed. Then run:
+
+    ```bash
+    docker-compose config
+    ```
+
+    to verify the combined configuration.
 
 5.  **Run Database Migrations:**
-    
+
     ```bash
     npm run prisma:generate
     npm run prisma:migrate
@@ -98,7 +110,7 @@
   ```
 
 - **Production Build:**
-  
+
   ```bash
   npm run build
   npm start
@@ -106,26 +118,34 @@
 
 ### Quality & Testing
 
+- **Standardized Verification:**
+
+  Run all checks in one command:
+
+  ```bash
+  npm run verify
+  ```
+
 - **Type Check:**
-  
+
   ```bash
   npm run type-check
   ```
 
 - **Lint:**
-  
+
   ```bash
   npm run lint
   ```
 
 - **Format:**
-  
+
   ```bash
   npm run format
   ```
 
 - **Test:**
-  
+
   ```bash
   npm test
   npm run test:watch

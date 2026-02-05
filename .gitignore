@@ -68,3 +68,6 @@ Icon
 ._*
 .Spotlight-V100
 .Trashes
+
+# Agent
+.agent/
