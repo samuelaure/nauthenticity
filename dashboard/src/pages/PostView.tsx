@@ -49,8 +49,6 @@ export const PostView = () => {
   if (isLoading) return <div>Loading...</div>;
   if (!post) return <div>Post not found</div>;
 
-
-
   return (
     <div className="fade-in" style={{ maxWidth: '1000px', margin: '0 auto' }}>
       <div

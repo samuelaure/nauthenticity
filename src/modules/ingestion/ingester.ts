@@ -41,7 +41,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
     await processingQueue.add('process-profile-image', {
       username: account.username,
       url: account.profileImageUrl,
-      contextUsername: username // The account currently being scraped
+      contextUsername: username, // The account currently being scraped
     });
   }
 
@@ -114,7 +114,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         collaborators.push({
           username: actualOwner,
           profilePicUrl: collabProfileUrl,
-          role: 'origin'
+          role: 'origin',
         });
 
         // Ensure collaborator has an Account record (but no posts, so it's hidden)
@@ -124,22 +124,25 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
             data: {
               username: actualOwner,
               profileImageUrl: collabProfileUrl,
-              lastScrapedAt: new Date()
-            }
+              lastScrapedAt: new Date(),
+            },
           });
         }
 
         // Queue collab profile image
-        if (collabProfileUrl && (!collabAccount.profileImageUrl || !collabAccount.profileImageUrl.startsWith('/content/'))) {
+        if (
+          collabProfileUrl &&
+          (!collabAccount.profileImageUrl || !collabAccount.profileImageUrl.startsWith('/content/'))
+        ) {
           await processingQueue.add('process-profile-image', {
             username: actualOwner,
             url: collabProfileUrl,
-            contextUsername: username // Store inside the currently scraped account folder
+            contextUsername: username, // Store inside the currently scraped account folder
           });
         }
       }
 
-      // Also check tagged users that might be collaborators? 
+      // Also check tagged users that might be collaborators?
       // For now, focusing on the Owner vs Context distinction.
 
       const takenAt = item.posted
@@ -215,7 +218,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
           if (!mediaInDb.storageUrl.startsWith('/content/')) {
             mediaInDb = await prisma.media.update({
               where: { id: mediaInDb.id },
-              data: { storageUrl: media.url }
+              data: { storageUrl: media.url },
             });
           }
         } else {
@@ -240,7 +243,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
               mediaId: mediaInDb.id,
               url: media.url,
               type: media.type,
-              username: postUsername // Ensure worker knows which folder to use
+              username: postUsername, // Ensure worker knows which folder to use
             },
             {
               attempts: 3,

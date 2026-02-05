@@ -108,7 +108,10 @@ export const AccountView = () => {
                 title={`Origin: ${post.collaborators[0].username}`}
               >
                 <img
-                  src={getMediaUrl(post.collaborators[0].profilePicUrl) || 'https://via.placeholder.com/24'}
+                  src={
+                    getMediaUrl(post.collaborators[0].profilePicUrl) ||
+                    'https://via.placeholder.com/24'
+                  }
                   alt={post.collaborators[0].username}
                   style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
                 />
@@ -149,7 +152,11 @@ export const AccountView = () => {
                   </div>
                 </div>
               ) : (
-                <img src={getMediaUrl(post.media[0].storageUrl)} alt="Post" className="post-media" />
+                <img
+                  src={getMediaUrl(post.media[0].storageUrl)}
+                  alt="Post"
+                  className="post-media"
+                />
               )
             ) : (
               <div

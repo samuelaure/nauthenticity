@@ -1,4 +1,3 @@
-
 import { ApifyClient } from 'apify-client';
 import { config } from '../config';
 
@@ -74,7 +73,9 @@ interface RawApifyPost {
 // Actor: apify/instagram-scraper
 export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]> => {
   if (urls.length === 0) return [];
-  console.log(`[Apify] Starting sidecar scrape for ${urls.length} posts using actor ${config.apify.instagramSidecarActorId}...`);
+  console.log(
+    `[Apify] Starting sidecar scrape for ${urls.length} posts using actor ${config.apify.instagramSidecarActorId}...`,
+  );
 
   try {
     const run = await client.actor(config.apify.instagramSidecarActorId).call({
@@ -94,18 +95,23 @@ export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]>
 
 // Actor: perfectscrape/mass-instagram-profile-posts-scraper (Main)
 // ID: gcfjdE6gC9K5aGsgi
-export const runInstagramScraper = async (username: string, maxPosts = 10): Promise<{ items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
-  console.log(`[Apify] Starting post scrape for ${username} using actor ${config.apify.instagramPostActorId}...`);
+export const runInstagramScraper = async (
+  username: string,
+  maxPosts = 10,
+): Promise<{ items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
+  console.log(
+    `[Apify] Starting post scrape for ${username} using actor ${config.apify.instagramPostActorId}...`,
+  );
 
   const run = await client.actor(config.apify.instagramPostActorId).call({
-    username: username, // 'perfectscrape' actor usually takes 'username' or 'usernames' or 'profiles' depending on version, confirming 'username' or 'directUrls' usage. 
+    username: username, // 'perfectscrape' actor usually takes 'username' or 'usernames' or 'profiles' depending on version, confirming 'username' or 'directUrls' usage.
     // Wait, the perfectscrape actor usually takes `profiles: [username]`. Let's double check standard usage or assume previous usage was correct (which was directUrls... wait).
-    // Previous code used `directUrls: ['https://www.instagram.com/' + username + '/']` for `apify/instagram-scraper`. 
+    // Previous code used `directUrls: ['https://www.instagram.com/' + username + '/']` for `apify/instagram-scraper`.
     // For `perfectscrape/mass-instagram-profile-posts-scraper`, input is typically `usernames`: [username] or `profiles`.
     // Let's assume standard input for compatibility with prior knowledge: `profiles: [username]` or `username: username`.
-    // Looking at the user request "ROLLBACK THE CHANGES... AGAIN THE MAIN ACTOR IS instagramPostActorId: 'gcfjdE6gC9K5aGsgi'". 
+    // Looking at the user request "ROLLBACK THE CHANGES... AGAIN THE MAIN ACTOR IS instagramPostActorId: 'gcfjdE6gC9K5aGsgi'".
     // The previous code (before I read it) was using `apify/instagram-scraper`.
-    // I need to use the input format for `gcfjdE6gC9K5aGsgi`. 
+    // I need to use the input format for `gcfjdE6gC9K5aGsgi`.
     // Usually: { "profiles": ["username"], "resultsLimit": 10 }
     profiles: [username],
     resultsLimit: maxPosts,
@@ -120,12 +126,12 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
   const sidecarUrls: string[] = [];
   const sidecarMap = new Map<string, RawApifyPost>();
 
-  items.forEach(item => {
+  items.forEach((item) => {
     const vidLen = item.video_links?.length || 0;
     const imgLen = item.image_links?.length || 0;
 
     // User logic: "if there are more than one item between both arrays"
-    if ((vidLen + imgLen) > 1) {
+    if (vidLen + imgLen > 1) {
       const shortCode = item.shortcode || item.shortCode || item.short_code;
       if (shortCode) {
         const url = `https://www.instagram.com/p/${shortCode}/`;
@@ -138,7 +144,7 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
     console.log(`[Apify] Found ${sidecarUrls.length} sidecars. Fetching details...`);
     const sidecarItems = await runSidecarScraper(sidecarUrls);
 
-    sidecarItems.forEach(sItem => {
+    sidecarItems.forEach((sItem) => {
       // Map by shortcode or URL to match original items
       const sc = sItem.shortcode || sItem.shortCode || sItem.short_code;
       if (sc) sidecarMap.set(sc, sItem);
@@ -158,7 +164,7 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
       // Extract from enriched data (apify/instagram-scraper format)
       // usually 'childPosts' or 'carousel_media'
       if (enriched.carousel_media) {
-        enriched.carousel_media.forEach(m => {
+        enriched.carousel_media.forEach((m) => {
           if (m.video_versions && m.video_versions.length > 0) {
             sidecarMedia.push({ type: 'video', url: m.video_versions[0].url });
           } else if (m.image_versions2 && m.image_versions2.candidates.length > 0) {
@@ -166,7 +172,7 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
           }
         });
       } else if (enriched.childPosts) {
-        enriched.childPosts.forEach(cp => {
+        enriched.childPosts.forEach((cp) => {
           if (cp.type === 'Video' && cp.videoUrl) {
             sidecarMedia.push({ type: 'video', url: cp.videoUrl });
           } else if (cp.displayUrl) {
@@ -176,17 +182,17 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
       }
     } else {
       // Fallback to Main Actor data (video_links / image_links)
-      // NOTE: Main actor provides flat lists, we don't know the order/pairing exactly, 
+      // NOTE: Main actor provides flat lists, we don't know the order/pairing exactly,
       // but user said to use sidecar actor for sidecars.
       // The instruction implies we ONLY use main actor data if it's NOT a sidecar or if sidecar fetch failed.
-      // But if it IS a sidecar (implied by >1 item), we hopefully got data. 
+      // But if it IS a sidecar (implied by >1 item), we hopefully got data.
       // If not, we fall back to what we have.
 
       if (item.video_links) {
-        item.video_links.forEach(v => sidecarMedia.push({ type: 'video', url: v }));
+        item.video_links.forEach((v) => sidecarMedia.push({ type: 'video', url: v }));
       }
       if (item.image_links) {
-        item.image_links.forEach(i => sidecarMedia.push({ type: 'image', url: i }));
+        item.image_links.forEach((i) => sidecarMedia.push({ type: 'image', url: i }));
       }
       // Deduplicate if needed?
     }
@@ -197,7 +203,11 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
       if (vUrl) {
         sidecarMedia.push({ type: 'video', url: vUrl });
       } else {
-        const iUrl = item.displayUrl || item.display_url || item.thumbnail || (item.image_links && item.image_links[0]);
+        const iUrl =
+          item.displayUrl ||
+          item.display_url ||
+          item.thumbnail ||
+          (item.image_links && item.image_links[0]);
         if (iUrl) sidecarMedia.push({ type: 'image', url: iUrl });
       }
     }
@@ -213,7 +223,10 @@ export const runInstagramScraper = async (username: string, maxPosts = 10): Prom
       likesCount: item.likesCount || item.likes_count || item.likes || 0,
       commentsCount: item.commentsCount || item.comments_count || item.comments || 0,
       displayUrl: item.displayUrl || item.display_url || item.thumbnail || '',
-      isVideo: (item.is_video ?? (!!item.videoUrl || !!item.video_url || (item.video_links && item.video_links.length > 0))) as boolean,
+      isVideo: (item.is_video ??
+        (!!item.videoUrl ||
+          !!item.video_url ||
+          (item.video_links && item.video_links.length > 0))) as boolean,
       videoUrl: item.videoUrl || item.video_url || (item.video_links && item.video_links[0]),
       ownerUsername: item.ownerUsername || item.owner_username || item.account_username || '',
       ownerId: item.ownerId || item.owner_id || '',
@@ -246,7 +259,9 @@ export interface ApifyProfileInfo {
 // Actor: coderx/instagram-profile-scraper-bio-posts
 // ID: PP60E1JIfagMaQxIP
 export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo | null> => {
-  console.log(`[Apify] Fetching profile info for ${username} with actor ${config.apify.instagramProfileActorId}...`);
+  console.log(
+    `[Apify] Fetching profile info for ${username} with actor ${config.apify.instagramProfileActorId}...`,
+  );
 
   // This actor strictly requires 'usernames' as an array
   const run = await client.actor(config.apify.instagramProfileActorId).call({
