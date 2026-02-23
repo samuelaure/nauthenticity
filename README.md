@@ -31,75 +31,45 @@
     docker-compose up -d
     ```
 
-4.  **Database Setup**
+4.  **Database & Infrastructure Setup**
+
+    The project uses a **standalone** Docker environment. PostgreSQL and Redis start locally by default.
 
     ```bash
+    docker-compose up -d
     npm run prisma:generate
     npm run prisma:migrate
     ```
 
 5.  **Run Application**
     - **Backend API**: `npm run dev` (Runs on http://localhost:3000)
-    - **Dashboard**: `cd dashboard && npm run dev` (Runs on http://localhost:5173)
+    - **Dashboard**: `cd dashboard && npm run dev` (Runs on http://localhost:5173 / http://localhost:5174)
 
     Open the dashboard to track accounts and view ingested content.
 
-## 🚀 Getting Started
+## 🚀 Development Workflow
 
-### Prerequisites
+### Standalone Environment
 
-- **Node.js**: v20+ (LTS)
-- **Docker & Docker Compose**: For running PostgreSQL and Redis locally
-- **Apify Account**: For Instagram scraping
-- **OpenAI API Key**: For content analysis and embedding
+We follow a **standalone-first** approach. Every project runs its own isolated infrastructure.
 
-### Installation
+- **Local Routing**: Reachable via `http://nauthenticity.localhost` (requires Traefik).
+- **Production**: Reachable via `https://nauthenticity.9nau.com`.
 
-1.  **Clone the repository:**
+### Quality & Verification
 
-    ```bash
-    git clone https://github.com/samuelaure/nauthenticity.git
-    cd nauthenticity
-    ```
+Before committing, always run the standardized verification suite:
 
-2.  **Install dependencies:**
+```bash
+npm run verify
+```
 
-    ```bash
-    npm install
-    ```
+This command executes:
 
-3.  **Environment Configuration:**
-
-    See Quick Start section above for `.env` setup.
-
-4.  **Start Infrastructure:**
-
-    The default `docker-compose.yml` includes PostgreSQL and Redis for standalone development:
-
-    ```bash
-    docker-compose up -d
-    ```
-
-    For server deployment or custom local configurations, copy the example override file:
-
-    ```bash
-    cp docker-compose.override.yml.example docker-compose.override.yml
-    ```
-
-    Edit `docker-compose.override.yml` to uncomment ports or set environment variables as needed. Then run:
-
-    ```bash
-    docker-compose config
-    ```
-
-    to verify the combined configuration.
-
-5.  **Run Database Migrations:**
-
-    ```bash
-    npm run prisma:generate
-    npm run prisma:migrate
-    ```
+1. **Format**: `prettier` check and fix.
+2. **Lint**: `eslint` for code quality.
+3. **Type Check**: `tsc` for strong typing.
+4. **Test**: `jest` for functional verification.
 
 ### Running the Application
 
