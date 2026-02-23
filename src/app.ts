@@ -25,9 +25,18 @@ const fastify = Fastify({
 
 // Configure Plugins
 fastify.register(cors, { origin: true });
+
+// Static assets (Media)
 fastify.register(fastifyStatic, {
   root: path.resolve(__dirname, '../storage'),
   prefix: '/content/',
+});
+
+// Dashboard Static Files
+fastify.register(fastifyStatic, {
+  root: path.resolve(__dirname, '../dashboard/dist'),
+  prefix: '/',
+  decorateReply: false,
 });
 
 // Set Global Error Handler
@@ -37,7 +46,7 @@ import { ingestionQueue } from './queues/ingestion.queue';
 import { processingQueue } from './queues/processing.queue';
 
 // Register Routes/Controllers
-fastify.get('/', async () => {
+fastify.get('/health', async () => {
   const [dbHealth, ingestionCount, processingCount] = await Promise.all([
     prisma.$queryRaw`SELECT 1`.then(() => 'ok').catch(() => 'error'),
     ingestionQueue.getJobCounts().catch(() => ({})),
@@ -54,6 +63,14 @@ fastify.get('/', async () => {
       processingQueue: processingCount,
     },
   };
+});
+
+// SPA Fallback: Serve index.html for non-api routes
+fastify.setNotFoundHandler((request, reply) => {
+  if (request.raw.url?.startsWith('/api') || request.raw.url?.startsWith('/content')) {
+    return reply.status(404).send({ error: 'Not Found' });
+  }
+  return reply.sendFile('index.html');
 });
 
 fastify.register(ingestionController);

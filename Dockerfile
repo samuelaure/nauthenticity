@@ -11,7 +11,16 @@ RUN apt-get update && apt-get install -y \
 COPY package*.json ./
 RUN npm ci
 
+# Copy all source
 COPY . .
+
+# Build Dashboard
+WORKDIR /app/dashboard
+RUN npm install
+RUN npm run build
+
+# Back to root and build Backend
+WORKDIR /app
 RUN npx prisma generate
 RUN npm run build
 
