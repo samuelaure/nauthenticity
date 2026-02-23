@@ -73,10 +73,9 @@ fastify.setNotFoundHandler((request, reply) => {
   return reply.sendFile('index.html');
 });
 
-fastify.register(ingestionController);
-fastify.register(contentController);
-fastify.register(analyticsController);
-
+fastify.register(ingestionController, { prefix: '/api' });
+fastify.register(contentController, { prefix: '/api' });
+fastify.register(analyticsController, { prefix: '/api' });
 const start = async () => {
   try {
     await fastify.listen({ port: config.port, host: '0.0.0.0' });
