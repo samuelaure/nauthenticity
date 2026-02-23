@@ -30,8 +30,8 @@ services:
     container_name: nauthenticity
     restart: always
     environment:
-      - PORT=3000
-      - NODE_ENV=production
+      - PORT=${PORT:-3000}
+      - NODE_ENV=${NODE_ENV:-development}
       - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -39,10 +39,19 @@ services:
     #   - '3000:3000'
     networks:
       - nauthenticity_network
+      - shared-mesh
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.nauthenticity.rule=Host(`nauthenticity.localhost`) || Host(`nauthenticity.9nau.com`)'
+      - 'traefik.http.routers.nauthenticity.entrypoints=web'
+      - 'traefik.http.services.nauthenticity.loadbalancer.server.port=3000'
+      - 'traefik.docker.network=shared-mesh'
 
 networks:
   nauthenticity_network:
     driver: bridge
+  shared-mesh:
+    external: true
 
 volumes:
   postgres_data:
