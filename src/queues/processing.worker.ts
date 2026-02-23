@@ -1,6 +1,7 @@
 import { Worker, Job } from 'bullmq';
 import { config } from '../config';
 import { prisma } from '../db/prisma';
+import { logger } from '../utils/logger';
 import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
@@ -35,7 +36,7 @@ export const processingWorker = new Worker(
   async (job: Job<any>) => {
     if (job.name === 'process-media') {
       const { postId, mediaId, url, type, username } = job.data as ProcessMediaData;
-      console.log(`[Worker] Processing Media ${mediaId} (${type}) for ${username}`);
+      logger.info(`[Worker] Processing Media ${mediaId} (${type}) for ${username}`);
 
       const userDir = path.join(config.paths.storage, username, 'posts');
       ensureDir(userDir);
@@ -53,7 +54,7 @@ export const processingWorker = new Worker(
 
       try {
         // 1. Download
-        console.log(`[Worker] Downloading ${type}: ${url}`);
+        logger.info(`[Worker] Downloading ${type}: ${url}`);
         const response = await fetch(url, {
           headers: {
             'User-Agent':
@@ -61,13 +62,12 @@ export const processingWorker = new Worker(
           },
         });
         if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
-        // @ts-ignore
-        await pipeline(response.body, createWriteStream(tempFilePath));
+        await pipeline(response.body as any, createWriteStream(tempFilePath));
 
         if (type === 'video') {
           // 2. Extract Audio & Transcribe
           const audioPath = path.join(config.paths.temp, `${mediaId}.mp3`);
-          console.log(`[Worker] Extracting audio...`);
+          logger.info(`[Worker] Extracting audio...`);
           await new Promise((resolve, reject) => {
             ffmpeg(tempFilePath)
               .toFormat('mp3')
@@ -76,7 +76,7 @@ export const processingWorker = new Worker(
               .save(audioPath);
           });
 
-          console.log(`[Worker] Transcribing...`);
+          logger.info(`[Worker] Transcribing...`);
           const translation = await openai.audio.transcriptions.create({
             file: fs.createReadStream(audioPath),
             model: 'whisper-1',
@@ -89,7 +89,7 @@ export const processingWorker = new Worker(
           });
 
           // 3. Optimize Video
-          console.log(`[Worker] Optimizing video...`);
+          logger.info(`[Worker] Optimizing video...`);
           await new Promise((resolve, reject) => {
             ffmpeg(tempFilePath)
               .outputOptions([
@@ -117,14 +117,16 @@ export const processingWorker = new Worker(
         });
 
         if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-        console.log(`[Worker] Media ${mediaId} complete: ${publicUrl}`);
-      } catch (error) {
-        console.error(`[Worker] Media Job Failed:`, error);
-        throw error;
+        logger.info(`[Worker] Media ${mediaId} complete: ${publicUrl}`);
+      } catch (postError) {
+        logger.error(
+          `[Worker] Failed to process media ${mediaId} for post ${postId}: ${postError}`,
+        );
+        throw postError; // Re-throw the error to mark the job as failed
       }
     } else if (job.name === 'process-profile-image') {
       const { username, url, contextUsername } = job.data as ProcessProfileImageData;
-      console.log(
+      logger.info(
         `[Worker] Processing Profile Image for ${username} (Context: ${contextUsername})`,
       );
 
@@ -139,8 +141,7 @@ export const processingWorker = new Worker(
       try {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
-        // @ts-ignore
-        await pipeline(response.body, createWriteStream(finalPath));
+        await pipeline(response.body as any, createWriteStream(finalPath));
 
         // If this is the profile pic of the account being scraped, update its main profile URL
         if (username === contextUsername) {

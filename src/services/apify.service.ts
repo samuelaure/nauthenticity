@@ -1,5 +1,6 @@
 import { ApifyClient } from 'apify-client';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 
 const client = new ApifyClient({
   token: config.apify.token,
@@ -73,7 +74,7 @@ interface RawApifyPost {
 // Actor: apify/instagram-scraper
 export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]> => {
   if (urls.length === 0) return [];
-  console.log(
+  logger.info(
     `[Apify] Starting sidecar scrape for ${urls.length} posts using actor ${config.apify.instagramSidecarActorId}...`,
   );
 
@@ -84,11 +85,11 @@ export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]>
       searchLimit: 1, // Not used for directUrls but good practice
     });
 
-    console.log(`[Apify] Sidecar scrape finished. Dataset ID: ${run.defaultDatasetId}`);
+    logger.info(`[Apify] Sidecar scrape finished. Dataset ID: ${run.defaultDatasetId}`);
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
     return items as unknown as RawApifyPost[];
   } catch (error) {
-    console.error(`[Apify] Error running sidecar scraper:`, error);
+    logger.error(`[Apify] Error running sidecar scraper: ${error}`);
     return [];
   }
 };
@@ -99,7 +100,7 @@ export const runInstagramScraper = async (
   username: string,
   maxPosts = 10,
 ): Promise<{ items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
-  console.log(
+  logger.info(
     `[Apify] Starting post scrape for ${username} using actor ${config.apify.instagramPostActorId}...`,
   );
 
@@ -117,7 +118,7 @@ export const runInstagramScraper = async (
     resultsLimit: maxPosts,
   });
 
-  console.log(`[Apify] Post scrape finished. Dataset ID: ${run.defaultDatasetId}`);
+  logger.info(`[Apify] Post scrape finished. Dataset ID: ${run.defaultDatasetId}`);
 
   const { items: rawItems } = await client.dataset(run.defaultDatasetId).listItems();
   const items = rawItems as unknown as RawApifyPost[];
@@ -141,7 +142,7 @@ export const runInstagramScraper = async (
   });
 
   if (sidecarUrls.length > 0) {
-    console.log(`[Apify] Found ${sidecarUrls.length} sidecars. Fetching details...`);
+    logger.info(`[Apify] Found ${sidecarUrls.length} sidecars. Fetching details...`);
     const sidecarItems = await runSidecarScraper(sidecarUrls);
 
     sidecarItems.forEach((sItem) => {
@@ -259,7 +260,7 @@ export interface ApifyProfileInfo {
 // Actor: coderx/instagram-profile-scraper-bio-posts
 // ID: PP60E1JIfagMaQxIP
 export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo | null> => {
-  console.log(
+  logger.info(
     `[Apify] Fetching profile info for ${username} with actor ${config.apify.instagramProfileActorId}...`,
   );
 
@@ -268,7 +269,7 @@ export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo
     usernames: [username],
   });
 
-  console.log(`[Apify] Profile scrape finished. Dataset: ${run.defaultDatasetId}`);
+  logger.info(`[Apify] Profile scrape finished. Dataset: ${run.defaultDatasetId}`);
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
   interface RawApifyProfile {

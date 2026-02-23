@@ -1,15 +1,15 @@
 import { runInstagramScraper, getProfileInfo } from '../../services/apify.service';
 import { prisma } from '../../db/prisma';
 import { processingQueue } from '../../queues/processing.queue';
+import { logger } from '../../utils/logger';
 
 export const ingestProfile = async (username: string, maxPosts = 10) => {
-  console.log(`[Ingester] Starting ingestion for ${username}`);
+  logger.info(`[Ingester] Starting ingestion for ${username}`);
 
   // 0. Ensure Account exists (Identity)
-  // @ts-ignore - Prisma client potentially outdated due to dev environment locks
   let account = await prisma.account.findUnique({ where: { username } });
   if (!account) {
-    console.log(`[Ingester] Account ${username} not found. Fetching profile info...`);
+    logger.info(`[Ingester] Account ${username} not found. Fetching profile info...`);
     try {
       const profile = await getProfileInfo(username);
       if (profile) {
@@ -21,7 +21,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
           },
         });
       } else {
-        console.warn(
+        logger.warn(
           `[Ingester] Could not fetch profile info for ${username}. Creating placeholder.`,
         );
         account = await prisma.account.create({
@@ -29,7 +29,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         });
       }
     } catch (e) {
-      console.error(`[Ingester] Error fetching profile info: ${e}`);
+      logger.error(`[Ingester] Error fetching profile info: ${e}`);
       account = await prisma.account.create({
         data: { username, lastScrapedAt: new Date() },
       });
@@ -61,7 +61,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
   let runId: string | undefined;
 
   if (cachedRun && cachedRun.rawData) {
-    console.log(`[Ingester] Using cached scraping results from run ${cachedRun.id}`);
+    logger.info(`[Ingester] Using cached scraping results from run ${cachedRun.id}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     items = cachedRun.rawData as any[];
     runId = cachedRun.id;
@@ -83,7 +83,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
     runId = run.id;
   }
 
-  console.log(`[Ingester] Processing ${items.length} posts. Saving to DB...`);
+  logger.info(`[Ingester] Processing ${items.length} posts. Saving to DB...`);
 
   let queuedCount = 0;
 
@@ -94,7 +94,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         item.url || (item.shortcode ? `https://www.instagram.com/p/${item.shortcode}/` : null);
 
       if (!instagramUrl) {
-        console.warn(`[Ingester] Skipping item without URL/Shortcode: ${JSON.stringify(item)}`);
+        logger.warn(`[Ingester] Skipping item without URL/Shortcode: ${JSON.stringify(item)}`);
         continue;
       }
 
@@ -108,7 +108,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
       const collaborators: any[] = [];
 
       if (actualOwner && actualOwner !== username) {
-        console.log(`[Ingester] Detected collaboration/origin: ${actualOwner}`);
+        logger.info(`[Ingester] Detected collaboration/origin: ${actualOwner}`);
         const collabProfileUrl = item.owner?.profile_pic_url || item.owner?.profilePicUrl;
 
         collaborators.push({
@@ -203,7 +203,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
       }
 
       if (mediaItems.length === 0) {
-        console.warn(`[Ingester] Post ${instagramId} has NO media items.`);
+        logger.warn(`[Ingester] Post ${instagramId} has NO media items.`);
       }
 
       for (let i = 0; i < mediaItems.length; i++) {
@@ -254,13 +254,12 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         }
       }
     } catch (postError) {
-      console.error(
-        `[Ingester] Failed to process individual post: ${item.url || item.shortcode}`,
-        postError,
+      logger.error(
+        `[Ingester] Failed to process individual post: ${item.url || item.shortcode} - ${postError}`,
       );
     }
   }
 
-  console.log(`[Ingester] Finished. Queued ${queuedCount} videos for processing.`);
+  logger.info(`[Ingester] Finished. Queued ${queuedCount} videos for processing.`);
   return { found: items.length, queued: queuedCount, runId };
 };
