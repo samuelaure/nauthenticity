@@ -7,9 +7,7 @@ import path from 'path';
 import { pipeline } from 'stream/promises';
 import { createWriteStream } from 'fs';
 import ffmpeg from 'fluent-ffmpeg';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({ apiKey: config.openai.apiKey });
+import { transcribeAudio } from '../services/transcription.service';
 
 interface ProcessMediaData {
   postId: string;
@@ -80,10 +78,7 @@ export const processingWorker = new Worker(
             });
 
             logger.info(`[Worker] Transcribing...`);
-            const translation = await openai.audio.transcriptions.create({
-              file: fs.createReadStream(audioPath),
-              model: 'whisper-1',
-            });
+            const translation = await transcribeAudio(audioPath);
 
             await prisma.transcript.upsert({
               where: { mediaId: mediaId },
