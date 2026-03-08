@@ -115,7 +115,7 @@ export const runInstagramScraper = async (
     // I need to use the input format for `gcfjdE6gC9K5aGsgi`.
     // Usually: { "profiles": ["username"], "resultsLimit": 10 }
     profiles: [username],
-    resultsLimit: maxPosts,
+    maxResults: maxPosts,
   });
 
   logger.info(`[Apify] Post scrape finished. Dataset ID: ${run.defaultDatasetId}`);

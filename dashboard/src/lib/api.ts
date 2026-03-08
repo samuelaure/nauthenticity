@@ -11,7 +11,17 @@ export const api = axios.create({
 export const getMediaUrl = (url?: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
-  if (url.startsWith('/content')) return `${API_URL}${url}`;
+  if (url.startsWith('/content')) {
+    if (API_URL.startsWith('http')) {
+      try {
+        const urlObj = new URL(API_URL);
+        return `${urlObj.origin}${url}`;
+      } catch (e) {
+        return url;
+      }
+    }
+    return url;
+  }
   return url;
 };
 
