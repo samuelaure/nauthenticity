@@ -1,6 +1,7 @@
 import { ApifyClient } from 'apify-client';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { withRetry } from '../utils/retry';
 
 const client = new ApifyClient({
   token: config.apify.token,
@@ -77,19 +78,27 @@ export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]>
   logger.info(
     `[Apify] Starting sidecar scrape for ${urls.length} posts using actor ${config.apify.instagramSidecarActorId}...`,
   );
-
   try {
-    const run = await client.actor(config.apify.instagramSidecarActorId).call({
-      directUrls: urls,
-      resultsType: 'details',
-      searchLimit: 1, // Not used for directUrls but good practice
-    });
+    const items = await withRetry(
+      async () => {
+        const run = await client.actor(config.apify.instagramSidecarActorId).call(
+          {
+            directUrls: urls,
+            resultsType: 'details',
+            searchLimit: 1,
+          },
+          { waitSecs: 300 }, // 5 minute timeout per attempt
+        );
 
-    logger.info(`[Apify] Sidecar scrape finished. Dataset ID: ${run.defaultDatasetId}`);
-    const { items } = await client.dataset(run.defaultDatasetId).listItems();
-    return items as unknown as RawApifyPost[];
-  } catch (error) {
-    logger.error(`[Apify] Error running sidecar scraper: ${error}`);
+        logger.info(`[Apify] Sidecar scrape finished. Dataset ID: ${run.defaultDatasetId}`);
+        const { items: datasetItems } = await client.dataset(run.defaultDatasetId).listItems();
+        return datasetItems as unknown as RawApifyPost[];
+      },
+      { attempts: 3, delay: 5000, factor: 2 },
+    );
+    return items;
+  } catch (error: any) {
+    logger.error(`[Apify] Error running sidecar scraper after retries: ${error.message}`);
     return [];
   }
 };
@@ -100,147 +109,151 @@ export const runInstagramScraper = async (
   username: string,
   maxPosts = 10,
 ): Promise<{ items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
-  logger.info(
-    `[Apify] Starting post scrape for ${username} using actor ${config.apify.instagramPostActorId}...`,
-  );
+  try {
+    const { items, run } = await withRetry(
+      async () => {
+        const actorRun = await client.actor(config.apify.instagramPostActorId).call(
+          {
+            profiles: [username],
+            maxResults: maxPosts,
+          },
+          { waitSecs: 300 },
+        );
 
-  const run = await client.actor(config.apify.instagramPostActorId).call({
-    username: username, // 'perfectscrape' actor usually takes 'username' or 'usernames' or 'profiles' depending on version, confirming 'username' or 'directUrls' usage.
-    // Wait, the perfectscrape actor usually takes `profiles: [username]`. Let's double check standard usage or assume previous usage was correct (which was directUrls... wait).
-    // Previous code used `directUrls: ['https://www.instagram.com/' + username + '/']` for `apify/instagram-scraper`.
-    // For `perfectscrape/mass-instagram-profile-posts-scraper`, input is typically `usernames`: [username] or `profiles`.
-    // Let's assume standard input for compatibility with prior knowledge: `profiles: [username]` or `username: username`.
-    // Looking at the user request "ROLLBACK THE CHANGES... AGAIN THE MAIN ACTOR IS instagramPostActorId: 'gcfjdE6gC9K5aGsgi'".
-    // The previous code (before I read it) was using `apify/instagram-scraper`.
-    // I need to use the input format for `gcfjdE6gC9K5aGsgi`.
-    // Usually: { "profiles": ["username"], "resultsLimit": 10 }
-    profiles: [username],
-    maxResults: maxPosts,
-  });
+        if (actorRun.status !== 'SUCCEEDED') {
+          throw new Error(`Apify actor run status: ${actorRun.status}`);
+        }
 
-  logger.info(`[Apify] Post scrape finished. Dataset ID: ${run.defaultDatasetId}`);
+        const { items: rawItems } = await client.dataset(actorRun.defaultDatasetId).listItems();
+        return { items: rawItems as unknown as RawApifyPost[], run: actorRun };
+      },
+      { attempts: 3, delay: 5000, factor: 2 },
+    );
 
-  const { items: rawItems } = await client.dataset(run.defaultDatasetId).listItems();
-  const items = rawItems as unknown as RawApifyPost[];
+    logger.info(`[Apify] Post scrape finished. Dataset ID: ${run.defaultDatasetId}`);
 
-  // Identify Sidecars
-  const sidecarUrls: string[] = [];
-  const sidecarMap = new Map<string, RawApifyPost>();
+    // Identify Sidecars
+    const sidecarUrls: string[] = [];
+    const sidecarMap = new Map<string, RawApifyPost>();
 
-  items.forEach((item) => {
-    const vidLen = item.video_links?.length || 0;
-    const imgLen = item.image_links?.length || 0;
+    items.forEach((item) => {
+      const vidLen = item.video_links?.length || 0;
+      const imgLen = item.image_links?.length || 0;
 
-    // User logic: "if there are more than one item between both arrays"
-    if (vidLen + imgLen > 1) {
-      const shortCode = item.shortcode || item.shortCode || item.short_code;
-      if (shortCode) {
-        const url = `https://www.instagram.com/p/${shortCode}/`;
-        sidecarUrls.push(url);
+      // User logic: "if there are more than one item between both arrays"
+      if (vidLen + imgLen > 1) {
+        const shortCode = item.shortcode || item.shortCode || item.short_code;
+        if (shortCode) {
+          const url = `https://www.instagram.com/p/${shortCode}/`;
+          sidecarUrls.push(url);
+        }
       }
-    }
-  });
-
-  if (sidecarUrls.length > 0) {
-    logger.info(`[Apify] Found ${sidecarUrls.length} sidecars. Fetching details...`);
-    const sidecarItems = await runSidecarScraper(sidecarUrls);
-
-    sidecarItems.forEach((sItem) => {
-      // Map by shortcode or URL to match original items
-      const sc = sItem.shortcode || sItem.shortCode || sItem.short_code;
-      if (sc) sidecarMap.set(sc, sItem);
-      // Also map by full URL just in case
-      if (sItem.url) sidecarMap.set(sItem.url, sItem);
     });
-  }
 
-  const mappedItems: ApifyInstagramPost[] = items.map((item) => {
-    let sidecarMedia: { type: 'image' | 'video'; url: string }[] = [];
-    const shortCode = item.shortcode || item.shortCode || item.short_code || item.id;
+    if (sidecarUrls.length > 0) {
+      logger.info(`[Apify] Found ${sidecarUrls.length} sidecars. Fetching details...`);
+      const sidecarItems = await runSidecarScraper(sidecarUrls);
 
-    // Check if we have better data from sidecar scrape
-    if (sidecarMap.has(shortCode as string)) {
-      const enriched = sidecarMap.get(shortCode as string)!;
-
-      // Extract from enriched data (apify/instagram-scraper format)
-      // usually 'childPosts' or 'carousel_media'
-      if (enriched.carousel_media) {
-        enriched.carousel_media.forEach((m) => {
-          if (m.video_versions && m.video_versions.length > 0) {
-            sidecarMedia.push({ type: 'video', url: m.video_versions[0].url });
-          } else if (m.image_versions2 && m.image_versions2.candidates.length > 0) {
-            sidecarMedia.push({ type: 'image', url: m.image_versions2.candidates[0].url });
-          }
-        });
-      } else if (enriched.childPosts) {
-        enriched.childPosts.forEach((cp) => {
-          if (cp.type === 'Video' && cp.videoUrl) {
-            sidecarMedia.push({ type: 'video', url: cp.videoUrl });
-          } else if (cp.displayUrl) {
-            sidecarMedia.push({ type: 'image', url: cp.displayUrl });
-          }
-        });
-      }
-    } else {
-      // Fallback to Main Actor data (video_links / image_links)
-      // NOTE: Main actor provides flat lists, we don't know the order/pairing exactly,
-      // but user said to use sidecar actor for sidecars.
-      // The instruction implies we ONLY use main actor data if it's NOT a sidecar or if sidecar fetch failed.
-      // But if it IS a sidecar (implied by >1 item), we hopefully got data.
-      // If not, we fall back to what we have.
-
-      if (item.video_links) {
-        item.video_links.forEach((v) => sidecarMedia.push({ type: 'video', url: v }));
-      }
-      if (item.image_links) {
-        item.image_links.forEach((i) => sidecarMedia.push({ type: 'image', url: i }));
-      }
-      // Deduplicate if needed?
+      sidecarItems.forEach((sItem) => {
+        // Map by shortcode or URL to match original items
+        const sc = sItem.shortcode || sItem.shortCode || sItem.short_code;
+        if (sc) sidecarMap.set(sc, sItem);
+        // Also map by full URL just in case
+        if (sItem.url) sidecarMap.set(sItem.url, sItem);
+      });
     }
 
-    // Single Media Fallback (if sidecarMedia is empty)
-    if (sidecarMedia.length === 0) {
-      const vUrl = item.videoUrl || item.video_url || (item.video_links && item.video_links[0]);
-      if (vUrl) {
-        sidecarMedia.push({ type: 'video', url: vUrl });
+    const mappedItems: ApifyInstagramPost[] = items.map((item) => {
+      let sidecarMedia: { type: 'image' | 'video'; url: string }[] = [];
+      const shortCode = item.shortcode || item.shortCode || item.short_code || item.id;
+
+      // Check if we have better data from sidecar scrape
+      if (sidecarMap.has(shortCode as string)) {
+        const enriched = sidecarMap.get(shortCode as string)!;
+
+        // Extract from enriched data (apify/instagram-scraper format)
+        // usually 'childPosts' or 'carousel_media'
+        if (enriched.carousel_media) {
+          enriched.carousel_media.forEach((m) => {
+            if (m.video_versions && m.video_versions.length > 0) {
+              sidecarMedia.push({ type: 'video', url: m.video_versions[0].url });
+            } else if (m.image_versions2 && m.image_versions2.candidates.length > 0) {
+              sidecarMedia.push({ type: 'image', url: m.image_versions2.candidates[0].url });
+            }
+          });
+        } else if (enriched.childPosts) {
+          enriched.childPosts.forEach((cp) => {
+            if (cp.type === 'Video' && cp.videoUrl) {
+              sidecarMedia.push({ type: 'video', url: cp.videoUrl });
+            } else if (cp.displayUrl) {
+              sidecarMedia.push({ type: 'image', url: cp.displayUrl });
+            }
+          });
+        }
       } else {
-        const iUrl =
-          item.displayUrl ||
-          item.display_url ||
-          item.thumbnail ||
-          (item.image_links && item.image_links[0]);
-        if (iUrl) sidecarMedia.push({ type: 'image', url: iUrl });
-      }
-    }
+        // Fallback to Main Actor data (video_links / image_links)
+        // NOTE: Main actor provides flat lists, we don't know the order/pairing exactly,
+        // but user said to use sidecar actor for sidecars.
+        // The instruction implies we ONLY use main actor data if it's NOT a sidecar or if sidecar fetch failed.
+        // But if it IS a sidecar (implied by >1 item), we hopefully got data.
+        // If not, we fall back to what we have.
 
-    const itemUrl = item.url || (shortCode ? `https://www.instagram.com/p/${shortCode}/` : '');
+        if (item.video_links) {
+          item.video_links.forEach((v) => sidecarMedia.push({ type: 'video', url: v }));
+        }
+        if (item.image_links) {
+          item.image_links.forEach((i) => sidecarMedia.push({ type: 'image', url: i }));
+        }
+        // Deduplicate if needed?
+      }
+
+      // Single Media Fallback (if sidecarMedia is empty)
+      if (sidecarMedia.length === 0) {
+        const vUrl = item.videoUrl || item.video_url || (item.video_links && item.video_links[0]);
+        if (vUrl) {
+          sidecarMedia.push({ type: 'video', url: vUrl });
+        } else {
+          const iUrl =
+            item.displayUrl ||
+            item.display_url ||
+            item.thumbnail ||
+            (item.image_links && item.image_links[0]);
+          if (iUrl) sidecarMedia.push({ type: 'image', url: iUrl });
+        }
+      }
+
+      const itemUrl = item.url || (shortCode ? `https://www.instagram.com/p/${shortCode}/` : '');
+
+      return {
+        id: item.id as string,
+        shortCode: shortCode as string,
+        url: itemUrl as string,
+        caption: item.caption || '',
+        timestamp: item.posted || item.timestamp || new Date().toISOString(),
+        likesCount: item.likesCount || item.likes_count || item.likes || 0,
+        commentsCount: item.commentsCount || item.comments_count || item.comments || 0,
+        displayUrl: item.displayUrl || item.display_url || item.thumbnail || '',
+        isVideo: (item.is_video ??
+          (!!item.videoUrl ||
+            !!item.video_url ||
+            (item.video_links && item.video_links.length > 0))) as boolean,
+        videoUrl: item.videoUrl || item.video_url || (item.video_links && item.video_links[0]),
+        ownerUsername: item.ownerUsername || item.owner_username || item.account_username || '',
+        ownerId: item.ownerId || item.owner_id || '',
+        productType: item.productType,
+        sidecarMedia: sidecarMedia,
+      };
+    });
 
     return {
-      id: item.id as string,
-      shortCode: shortCode as string,
-      url: itemUrl as string,
-      caption: item.caption || '',
-      timestamp: item.posted || item.timestamp || new Date().toISOString(),
-      likesCount: item.likesCount || item.likes_count || item.likes || 0,
-      commentsCount: item.commentsCount || item.comments_count || item.comments || 0,
-      displayUrl: item.displayUrl || item.display_url || item.thumbnail || '',
-      isVideo: (item.is_video ??
-        (!!item.videoUrl ||
-          !!item.video_url ||
-          (item.video_links && item.video_links.length > 0))) as boolean,
-      videoUrl: item.videoUrl || item.video_url || (item.video_links && item.video_links[0]),
-      ownerUsername: item.ownerUsername || item.owner_username || item.account_username || '',
-      ownerId: item.ownerId || item.owner_id || '',
-      productType: item.productType,
-      sidecarMedia: sidecarMedia,
+      items: mappedItems,
+      datasetId: run.defaultDatasetId,
+      actorRunId: run.id,
     };
-  });
-
-  return {
-    items: mappedItems,
-    datasetId: run.defaultDatasetId,
-    actorRunId: run.id,
-  };
+  } catch (error: any) {
+    logger.error(`[Apify] Error running instagram scraper after retries: ${error.message}`);
+    throw error;
+  }
 };
 
 export interface ApifyProfileInfo {
@@ -260,18 +273,6 @@ export interface ApifyProfileInfo {
 // Actor: coderx/instagram-profile-scraper-bio-posts
 // ID: PP60E1JIfagMaQxIP
 export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo | null> => {
-  logger.info(
-    `[Apify] Fetching profile info for ${username} with actor ${config.apify.instagramProfileActorId}...`,
-  );
-
-  // This actor strictly requires 'usernames' as an array
-  const run = await client.actor(config.apify.instagramProfileActorId).call({
-    usernames: [username],
-  });
-
-  logger.info(`[Apify] Profile scrape finished. Dataset: ${run.defaultDatasetId}`);
-  const { items } = await client.dataset(run.defaultDatasetId).listItems();
-
   interface RawApifyProfile {
     username: string;
     fullName?: string;
@@ -295,22 +296,51 @@ export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo
     is_verified?: boolean;
   }
 
-  if (items.length === 0) return null;
+  try {
+    const profile = await withRetry(
+      async () => {
+        const run = await client.actor(config.apify.instagramProfileActorId).call(
+          {
+            usernames: [username],
+          },
+          { waitSecs: 180 }, // Profiles are faster
+        );
 
-  // The actor returns the profile object as the first item
-  const item = items[0] as unknown as RawApifyProfile;
+        if (run.status !== 'SUCCEEDED') {
+          throw new Error(`Apify profile actor status: ${run.status}`);
+        }
 
-  return {
-    username: item.username,
-    fullName: item.fullName || item.full_name,
-    biography: item.biography,
-    profilePicUrl: (item.profilePicUrl || item.profile_pic_url) as string, // Cast to string as fallback or ensure logic handles undefined if needed, but per type def it is string
-    profilePicUrlHD: item.hdProfilePicUrl || item.hd_profile_pic_url_info?.url,
-    followersCount: item.followersCount || item.followers_count,
-    followsCount: item.followsCount || item.following_count,
-    postsCount: item.postsCount || item.media_count,
-    externalUrl: item.externalUrl || item.external_url,
-    isBusinessAccount: item.isBusinessAccount || item.is_business_account,
-    verified: item.verified || item.is_verified,
-  };
+        const { items } = await client.dataset(run.defaultDatasetId).listItems();
+        if (items.length === 0) return null;
+        return items[0] as unknown as RawApifyProfile;
+      },
+      { attempts: 3, delay: 5000, factor: 2 },
+    );
+
+    if (!profile) {
+      logger.warn(`[Apify] No profile found for ${username}`);
+      return null;
+    }
+
+    const item = profile;
+
+    return {
+      username: item.username,
+      fullName: item.fullName || item.full_name,
+      biography: item.biography,
+      profilePicUrl: (item.profilePicUrl || item.profile_pic_url) as string,
+      profilePicUrlHD: item.hdProfilePicUrl || item.hd_profile_pic_url_info?.url,
+      followersCount: item.followersCount || item.followers_count,
+      followsCount: item.followsCount || item.following_count,
+      postsCount: item.postsCount || item.media_count,
+      externalUrl: item.externalUrl || item.external_url,
+      isBusinessAccount: item.isBusinessAccount || item.is_business_account,
+      verified: item.verified || item.is_verified,
+    };
+  } catch (error: any) {
+    logger.error(
+      `[Apify] Error fetching profile info for ${username} after retries: ${error.message}`,
+    );
+    return null;
+  }
 };

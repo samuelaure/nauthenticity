@@ -2,6 +2,7 @@ import { Worker, Job } from 'bullmq';
 import { config } from '../config';
 import { ingestProfile } from '../modules/ingestion/ingester';
 import { logger } from '../utils/logger';
+import { withTimeout } from '../utils/timeout';
 
 interface IngestionJobData {
   username: string;
@@ -16,7 +17,11 @@ export const ingestionWorker = new Worker(
       logger.info(`[IngestionWorker] Starting ingestion job ${job.id} for ${username}`);
 
       try {
-        const result = await ingestProfile(username, limit);
+        const result = await withTimeout(
+          ingestProfile(username, limit),
+          15 * 60 * 1000,
+          `Ingestion for ${username} timed out after 15 minutes`,
+        );
         logger.info(
           `[IngestionWorker] Finished ingestion job ${job.id} for ${username}: Found ${result.found}, Queued ${result.queued}`,
         );
