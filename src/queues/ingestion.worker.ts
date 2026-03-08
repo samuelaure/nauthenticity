@@ -4,6 +4,8 @@ import { ingestProfile } from '../modules/ingestion/ingester';
 import { logger } from '../utils/logger';
 import { withTimeout } from '../utils/timeout';
 
+import { logContextStorage } from '../utils/context';
+
 interface IngestionJobData {
   username: string;
   limit: number;
@@ -12,25 +14,27 @@ interface IngestionJobData {
 export const ingestionWorker = new Worker(
   'ingestion-queue',
   async (job: Job<IngestionJobData>) => {
-    if (job.name === 'start-ingestion') {
-      const { username, limit } = job.data;
-      logger.info(`[IngestionWorker] Starting ingestion job ${job.id} for ${username}`);
+    return logContextStorage.run({ jobId: job.id, username: job.data.username }, async () => {
+      if (job.name === 'start-ingestion') {
+        const { username, limit } = job.data;
+        logger.info(`[IngestionWorker] Starting ingestion job for ${username}`);
 
-      try {
-        const result = await withTimeout(
-          ingestProfile(username, limit),
-          15 * 60 * 1000,
-          `Ingestion for ${username} timed out after 15 minutes`,
-        );
-        logger.info(
-          `[IngestionWorker] Finished ingestion job ${job.id} for ${username}: Found ${result.found}, Queued ${result.queued}`,
-        );
-        return result;
-      } catch (error) {
-        logger.error(`[IngestionWorker] Job ${job.id} failed for ${username}: ${error}`);
-        throw error;
+        try {
+          const result = await withTimeout(
+            ingestProfile(username, limit),
+            15 * 60 * 1000,
+            `Ingestion for ${username} timed out after 15 minutes`,
+          );
+          logger.info(
+            `[IngestionWorker] Finished ingestion job for ${username}: Found ${result.found}, Queued ${result.queued}`,
+          );
+          return result;
+        } catch (error) {
+          logger.error(`[IngestionWorker] Job failed for ${username}: ${error}`);
+          throw error;
+        }
       }
-    }
+    });
   },
   { connection: config.redis },
 );

@@ -1,7 +1,15 @@
 import Fastify from 'fastify';
+import { logContextStorage } from './context';
 
 // Create a standalone fastify instance just for its logger properties
-// This ensures we use the same logging format and configuration
-const base = Fastify({ logger: true });
+const base = Fastify({
+  logger: {
+    level: process.env.LOG_LEVEL || 'info',
+    // Mixin allows us to inject context into every log line automatically
+    mixin() {
+      return logContextStorage.getStore() || {};
+    },
+  },
+});
 
 export const logger = base.log;
