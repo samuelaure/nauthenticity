@@ -2,6 +2,7 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
+import rateLimit from '@fastify/rate-limit';
 import path from 'path';
 
 import { env } from './config/env';
@@ -25,6 +26,10 @@ const fastify = Fastify({
 
 // Configure Plugins
 fastify.register(cors, { origin: true });
+fastify.register(rateLimit, {
+  max: 100,
+  timeWindow: '1 minute',
+});
 
 // Static assets (Media)
 fastify.register(fastifyStatic, {
