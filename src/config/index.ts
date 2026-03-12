@@ -23,4 +23,7 @@ export const config = {
     temp: './temp',
     storage: './storage',
   },
+  transcription: {
+    url: env.TRANSCRIPTION_URL,
+  },
 };

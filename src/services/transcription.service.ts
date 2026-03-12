@@ -8,15 +8,21 @@ export interface TranscriptionResult {
   json?: any;
 }
 
-const openai = new OpenAI({ apiKey: config.openai.apiKey });
+const openai = new OpenAI({
+  apiKey: config.transcription.url ? 'local-no-key' : config.openai.apiKey,
+  baseURL: config.transcription.url ? `${config.transcription.url}/v1` : undefined,
+});
 
 export const transcribeAudio = async (filePath: string): Promise<TranscriptionResult> => {
-  // For now, we use OpenAI. In Phase 2.5, we will switch to local faster-whisper.
   try {
-    logger.info(`[Transcription] Transcribing ${filePath}...`);
+    logger.info(
+      `[Transcription] Transcribing ${filePath} using ${
+        config.transcription.url ? 'local whisper' : 'OpenAI'
+      }...`,
+    );
     const result = await openai.audio.transcriptions.create({
       file: fs.createReadStream(filePath),
-      model: 'whisper-1',
+      model: config.transcription.url ? 'base' : 'whisper-1',
     });
 
     return {

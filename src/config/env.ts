@@ -8,6 +8,7 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().default(6379),
   APIFY_TOKEN: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1),
+  TRANSCRIPTION_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

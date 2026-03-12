@@ -33,6 +33,7 @@ services:
       - REDIS_PORT=6379
       - APIFY_TOKEN=${APIFY_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TRANSCRIPTION_URL=http://shared_whisper:8000
     volumes:
       - ./storage:/app/storage
     # ports:
