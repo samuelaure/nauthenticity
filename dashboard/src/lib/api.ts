@@ -132,3 +132,35 @@ export const getQueueStatus = async () => {
   const { data } = await api.get<QueueStatus>('/queue');
   return data;
 };
+
+export interface PostProgress {
+  id: string;
+  instagramId: string;
+  postedAt: string;
+  caption: string | null;
+  mediaCount: number;
+  downloaded: boolean;
+  hasVideo: boolean;
+  transcribed: boolean;
+  transcriptPreview: string | null;
+}
+
+export interface AccountProgress {
+  summary: {
+    totalPosts: number;
+    totalMedia: number;
+    localMedia: number;
+    pendingDownloads: number;
+    downloadPct: number;
+    videoPostsTotal: number;
+    transcribedPosts: number;
+    transcriptPct: number;
+    totalTranscripts: number;
+  };
+  posts: PostProgress[];
+}
+
+export const getAccountProgress = async (username: string) => {
+  const { data } = await api.get<AccountProgress>(`/accounts/${username}/progress`);
+  return data;
+};

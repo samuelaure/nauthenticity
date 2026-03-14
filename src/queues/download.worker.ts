@@ -154,7 +154,7 @@ export const downloadWorker = new Worker(
       }
     });
   },
-  { connection: config.redis, concurrency: 10 },
+  { connection: config.redis, concurrency: 25 },
 );
 
 downloadWorker.on('failed', (job, err) => {

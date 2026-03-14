@@ -4,6 +4,7 @@ import { AccountsList } from './pages/AccountsList';
 import { AccountView } from './pages/AccountView';
 import { PostView } from './pages/PostView';
 import { QueueView } from './pages/QueueView';
+import { ProgressView } from './pages/ProgressView';
 import { Link } from 'react-router-dom';
 import './index.css';
 
@@ -23,7 +24,10 @@ function App() {
                 Accounts
               </Link>
               <Link to="/queue" className="nav-link">
-                Queue
+                Queues
+              </Link>
+              <Link to="/progress" className="nav-link">
+                Progress
               </Link>
             </nav>
           </header>
@@ -32,6 +36,7 @@ function App() {
             <Route path="/accounts/:username" element={<AccountView />} />
             <Route path="/posts/:id" element={<PostView />} />
             <Route path="/queue" element={<QueueView />} />
+            <Route path="/progress" element={<ProgressView />} />
           </Routes>
         </div>
       </BrowserRouter>

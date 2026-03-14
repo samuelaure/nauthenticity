@@ -186,4 +186,81 @@ export const contentController = async (fastify: FastifyInstance) => {
       return reply.status(500).send({ error: 'Failed to update post' });
     }
   });
+
+  // --- Progress Reporting ---
+  fastify.get(
+    '/accounts/:username/progress',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { username } = request.params as { username: string };
+      try {
+        // Aggregate totals in one query set
+        const [totalPosts, totalMedia, localMedia, totalTranscripts] = await Promise.all([
+          prisma.post.count({ where: { username } }),
+          prisma.media.count({ where: { post: { username } } }),
+          prisma.media.count({
+            where: { post: { username }, storageUrl: { startsWith: '/content/' } },
+          }),
+          prisma.transcript.count({ where: { post: { username } } }),
+        ]);
+
+        // Per-post breakdown (latest 200 posts, ordered newest first)
+        const posts = await prisma.post.findMany({
+          where: { username },
+          orderBy: { postedAt: 'desc' },
+          take: 200,
+          select: {
+            id: true,
+            instagramId: true,
+            postedAt: true,
+            caption: true,
+            media: {
+              select: {
+                id: true,
+                type: true,
+                storageUrl: true,
+              },
+            },
+            transcripts: {
+              select: { id: true, text: true },
+              take: 1,
+            },
+          },
+        });
+
+        const videoPosts = posts.filter((p) => p.media.some((m) => m.type === 'video'));
+        const videoPostsWithTranscript = videoPosts.filter((p) => p.transcripts.length > 0);
+
+        return {
+          summary: {
+            totalPosts,
+            totalMedia,
+            localMedia,
+            pendingDownloads: totalMedia - localMedia,
+            downloadPct: totalMedia > 0 ? Math.round((localMedia / totalMedia) * 100) : 0,
+            videoPostsTotal: videoPosts.length,
+            transcribedPosts: videoPostsWithTranscript.length,
+            transcriptPct:
+              videoPosts.length > 0
+                ? Math.round((videoPostsWithTranscript.length / videoPosts.length) * 100)
+                : 0,
+            totalTranscripts,
+          },
+          posts: posts.map((p) => ({
+            id: p.id,
+            instagramId: p.instagramId,
+            postedAt: p.postedAt,
+            caption: p.caption?.slice(0, 80),
+            mediaCount: p.media.length,
+            downloaded: p.media.every((m) => m.storageUrl.startsWith('/content/')),
+            hasVideo: p.media.some((m) => m.type === 'video'),
+            transcribed: p.transcripts.length > 0,
+            transcriptPreview: p.transcripts[0]?.text?.slice(0, 80) ?? null,
+          })),
+        };
+      } catch (e) {
+        request.log.error(e);
+        return reply.status(500).send({ error: 'Failed to fetch progress' });
+      }
+    },
+  );
 };
