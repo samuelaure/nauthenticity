@@ -6,8 +6,8 @@ import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
 import { createWriteStream } from 'fs';
-import ffmpeg from 'fluent-ffmpeg';
-import { transcribeAudio } from '../services/transcription.service';
+import { logContextStorage } from '../utils/context';
+import { computeQueue } from './compute.queue';
 
 interface ProcessMediaData {
   postId: string;
@@ -29,15 +29,13 @@ const ensureDir = (dir: string) => {
   }
 };
 
-import { logContextStorage } from '../utils/context';
-
-export const processingWorker = new Worker(
-  'processing-queue',
+export const downloadWorker = new Worker(
+  'download-queue',
   async (job: Job<any>) => {
     return logContextStorage.run({ jobId: job.id, ...job.data }, async () => {
       if (job.name === 'process-media') {
         const { postId, mediaId, url, type, username } = job.data as ProcessMediaData;
-        logger.info(`[Worker] Processing Media (${type}) for ${username}`);
+        logger.info(`[DownloadWorker] Downloading Media (${type}) for ${username}`);
 
         const userDir = path.join(config.paths.storage, username, 'posts');
         ensureDir(userDir);
@@ -54,76 +52,54 @@ export const processingWorker = new Worker(
         );
 
         try {
-          // 1. Download
-          logger.info(`[Worker] Downloading ${type}: ${url}`);
-          const response = await fetch(url, {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
-            },
-          });
-          if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
-          await pipeline(response.body as any, createWriteStream(tempFilePath));
-
-          if (type === 'video') {
-            // 2. Extract Audio & Transcribe
-            const audioPath = path.join(config.paths.temp, `${mediaId}.mp3`);
-            logger.info(`[Worker] Extracting audio...`);
-            await new Promise((resolve, reject) => {
-              ffmpeg(tempFilePath)
-                .toFormat('mp3')
-                .on('end', resolve)
-                .on('error', reject)
-                .save(audioPath);
+          if (!fs.existsSync(finalPath)) {
+            // 1. Download to temp
+            logger.info(`[DownloadWorker] Fetching ${url}`);
+            const response = await fetch(url, {
+              headers: {
+                'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+              },
             });
+            if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
 
-            logger.info(`[Worker] Transcribing...`);
-            const translation = await transcribeAudio(audioPath);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await pipeline(response.body as any, createWriteStream(tempFilePath));
 
-            await prisma.transcript.upsert({
-              where: { mediaId: mediaId },
-              update: { text: translation.text, json: translation as any },
-              create: { postId, mediaId, text: translation.text, json: translation as any },
-            });
-
-            // 3. Optimize Video
-            logger.info(`[Worker] Optimizing video...`);
-            await new Promise((resolve, reject) => {
-              ffmpeg(tempFilePath)
-                .outputOptions([
-                  '-c:v libx264',
-                  '-crf 28',
-                  '-vf scale=-2:720',
-                  '-c:a aac',
-                  '-b:a 128k',
-                ])
-                .save(finalPath)
-                .on('end', resolve)
-                .on('error', reject);
-            });
-
-            fs.unlinkSync(audioPath);
-          } else {
-            // 2. Just move image to final spot
+            // 2. Atomic rename to final path (prevents partial reads by other components)
             fs.renameSync(tempFilePath, finalPath);
+          } else {
+            logger.info(`[DownloadWorker] File already exists at final path, skipping download.`);
           }
 
-          // 4. Update Database
+          // 3. Update DB (for both image and video, it is now local)
           await prisma.media.update({
             where: { id: mediaId },
             data: { storageUrl: publicUrl },
           });
 
-          if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-          logger.info(`[Worker] Media complete: ${publicUrl}`);
+          // 4. Handoff to Compute Queue for Videos
+          if (type === 'video') {
+            logger.info(`[DownloadWorker] Video downloaded. Enqueueing to compute queue.`);
+            await computeQueue.add('compute-video', {
+              postId,
+              mediaId,
+              filePath: finalPath,
+              publicUrl,
+            });
+          }
+
+          logger.info(`[DownloadWorker] Download complete: ${publicUrl}`);
         } catch (postError) {
-          logger.error(`[Worker] Failed to process media for post ${postId}: ${postError}`);
-          throw postError; // Re-throw the error to mark the job as failed
+          logger.error(`[DownloadWorker] Failed to process media for post ${postId}: ${postError}`);
+          throw postError;
+        } finally {
+          if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
       } else if (job.name === 'process-profile-image') {
         const { username, url, contextUsername } = job.data as ProcessProfileImageData;
         logger.info(
-          `[Worker] Processing Profile Image for ${username} (Context: ${contextUsername})`,
+          `[DownloadWorker] Processing Profile Image for ${username} (Context: ${contextUsername})`,
         );
 
         const profilesDir = path.join(config.paths.storage, contextUsername, 'profiles');
@@ -135,9 +111,12 @@ export const processingWorker = new Worker(
         const publicUrl = `/content/${contextUsername}/profiles/${finalFilename}`;
 
         try {
-          const response = await fetch(url);
-          if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
-          await pipeline(response.body as any, createWriteStream(finalPath));
+          if (!fs.existsSync(finalPath)) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await pipeline(response.body as any, createWriteStream(finalPath));
+          }
 
           // If this is the profile pic of the account being scraped, update its main profile URL
           if (username === contextUsername) {
@@ -154,6 +133,7 @@ export const processingWorker = new Worker(
           const postsWithThisCollab = allAccountPosts.filter((p) => p.collaborators !== null);
 
           for (const p of postsWithThisCollab) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const cs = p.collaborators as any[];
             if (Array.isArray(cs)) {
               const newCs = cs.map((c) =>
@@ -166,13 +146,17 @@ export const processingWorker = new Worker(
             }
           }
 
-          logger.info(`[Worker] Profile image for ${username} complete: ${publicUrl}`);
+          logger.info(`[DownloadWorker] Profile image for ${username} complete: ${publicUrl}`);
         } catch (error) {
-          logger.error(`[Worker] Profile Image Job Failed: ${error}`);
+          logger.error(`[DownloadWorker] Profile Image Job Failed: ${error}`);
           throw error;
         }
       }
     });
   },
-  { connection: config.redis },
+  { connection: config.redis, concurrency: 10 },
 );
+
+downloadWorker.on('failed', (job, err) => {
+  logger.error(`[DownloadWorker] Job ${job?.id} failed: ${err.message}`);
+});

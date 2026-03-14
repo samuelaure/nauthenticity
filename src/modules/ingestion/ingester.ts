@@ -1,6 +1,6 @@
 import { runInstagramScraper, getProfileInfo } from '../../services/apify.service';
 import { prisma } from '../../db/prisma';
-import { processingQueue } from '../../queues/processing.queue';
+import { downloadQueue } from '../../queues/download.queue';
 import { logger } from '../../utils/logger';
 
 export const ingestProfile = async (username: string, maxPosts = 10) => {
@@ -38,7 +38,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
 
   // Queue Profile Image download if not local
   if (account.profileImageUrl && !account.profileImageUrl.startsWith('/content/')) {
-    await processingQueue.add('process-profile-image', {
+    await downloadQueue.add('process-profile-image', {
       username: account.username,
       url: account.profileImageUrl,
       contextUsername: username, // The account currently being scraped
@@ -134,7 +134,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
           collabProfileUrl &&
           (!collabAccount.profileImageUrl || !collabAccount.profileImageUrl.startsWith('/content/'))
         ) {
-          await processingQueue.add('process-profile-image', {
+          await downloadQueue.add('process-profile-image', {
             username: actualOwner,
             url: collabProfileUrl,
             contextUsername: username, // Store inside the currently scraped account folder
@@ -236,7 +236,7 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
         // 6. Queue for Local Storage (Both Images and Videos)
         // If it's already local, we skip
         if (!mediaInDb.storageUrl.startsWith('/content/')) {
-          await processingQueue.add(
+          await downloadQueue.add(
             'process-media',
             {
               postId: post.id,

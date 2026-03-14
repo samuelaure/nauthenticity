@@ -80,7 +80,7 @@ export interface QueueJob {
   opts: any;
 }
 
-export interface QueueStatus {
+export interface QueueMetrics {
   counts: {
     waiting: number;
     active: number;
@@ -92,6 +92,12 @@ export interface QueueStatus {
   active: QueueJob[];
   waiting: QueueJob[];
   failed: QueueJob[];
+}
+
+export interface QueueStatus {
+  download: QueueMetrics;
+  compute: QueueMetrics;
+  ingestion: QueueMetrics;
 }
 
 export const getAccounts = async () => {

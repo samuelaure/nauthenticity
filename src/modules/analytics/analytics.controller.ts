@@ -1,21 +1,38 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { processingQueue } from '../../queues/processing.queue';
+import { downloadQueue } from '../../queues/download.queue';
+import { computeQueue } from '../../queues/compute.queue';
 import { ingestionQueue } from '../../queues/ingestion.queue';
 
 export const analyticsController = async (fastify: FastifyInstance) => {
   fastify.get('/queue', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const [pCounts, pActive, pWaiting, pFailed, iCounts, iActive, iWaiting, iFailed] =
-        await Promise.all([
-          processingQueue.getJobCounts(),
-          processingQueue.getActive(0, 50),
-          processingQueue.getWaiting(0, 50),
-          processingQueue.getFailed(0, 50),
-          ingestionQueue.getJobCounts(),
-          ingestionQueue.getActive(0, 50),
-          ingestionQueue.getWaiting(0, 50),
-          ingestionQueue.getFailed(0, 50),
-        ]);
+      const [
+        dCounts,
+        dActive,
+        dWaiting,
+        dFailed,
+        cCounts,
+        cActive,
+        cWaiting,
+        cFailed,
+        iCounts,
+        iActive,
+        iWaiting,
+        iFailed,
+      ] = await Promise.all([
+        downloadQueue.getJobCounts(),
+        downloadQueue.getActive(0, 50),
+        downloadQueue.getWaiting(0, 50),
+        downloadQueue.getFailed(0, 50),
+        computeQueue.getJobCounts(),
+        computeQueue.getActive(0, 50),
+        computeQueue.getWaiting(0, 50),
+        computeQueue.getFailed(0, 50),
+        ingestionQueue.getJobCounts(),
+        ingestionQueue.getActive(0, 50),
+        ingestionQueue.getWaiting(0, 50),
+        ingestionQueue.getFailed(0, 50),
+      ]);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const formatJob = (j: any) => ({
@@ -31,11 +48,17 @@ export const analyticsController = async (fastify: FastifyInstance) => {
       });
 
       return {
-        processing: {
-          counts: pCounts,
-          active: pActive.map(formatJob),
-          waiting: pWaiting.map(formatJob),
-          failed: pFailed.map(formatJob),
+        download: {
+          counts: dCounts,
+          active: dActive.map(formatJob),
+          waiting: dWaiting.map(formatJob),
+          failed: dFailed.map(formatJob),
+        },
+        compute: {
+          counts: cCounts,
+          active: cActive.map(formatJob),
+          waiting: cWaiting.map(formatJob),
+          failed: cFailed.map(formatJob),
         },
         ingestion: {
           counts: iCounts,
@@ -56,10 +79,16 @@ export const analyticsController = async (fastify: FastifyInstance) => {
 
       if (queueName === 'ingestion') {
         await ingestionQueue.retryJobs();
-      } else if (queueName === 'processing') {
-        await processingQueue.retryJobs();
+      } else if (queueName === 'download') {
+        await downloadQueue.retryJobs();
+      } else if (queueName === 'compute') {
+        await computeQueue.retryJobs();
       } else {
-        await Promise.all([ingestionQueue.retryJobs(), processingQueue.retryJobs()]);
+        await Promise.all([
+          ingestionQueue.retryJobs(),
+          downloadQueue.retryJobs(),
+          computeQueue.retryJobs(),
+        ]);
       }
 
       return { status: 'ok', message: 'Failed jobs retried' };
@@ -75,12 +104,15 @@ export const analyticsController = async (fastify: FastifyInstance) => {
 
       if (queueName === 'ingestion') {
         await ingestionQueue.clean(0, 0, 'failed');
-      } else if (queueName === 'processing') {
-        await processingQueue.clean(0, 0, 'failed');
+      } else if (queueName === 'download') {
+        await downloadQueue.clean(0, 0, 'failed');
+      } else if (queueName === 'compute') {
+        await computeQueue.clean(0, 0, 'failed');
       } else {
         await Promise.all([
           ingestionQueue.clean(0, 0, 'failed'),
-          processingQueue.clean(0, 0, 'failed'),
+          downloadQueue.clean(0, 0, 'failed'),
+          computeQueue.clean(0, 0, 'failed'),
         ]);
       }
 

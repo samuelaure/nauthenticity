@@ -1,82 +1,89 @@
 import { useQuery } from '@tanstack/react-query';
-import { getQueueStatus } from '../lib/api';
+import { getQueueStatus, type QueueMetrics } from '../lib/api';
 import { formatDistanceToNow } from 'date-fns';
-import { Activity, Clock, AlertCircle, CheckCircle, RefreshCcw } from 'lucide-react';
+import {
+  Activity,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  RefreshCcw,
+  Database,
+  HardDrive,
+  Cpu,
+} from 'lucide-react';
+import React from 'react';
 
-export const QueueView = () => {
-  const {
-    data: queue,
-    isLoading,
-    refetch,
-    isFetching,
-  } = useQuery({
-    queryKey: ['queue'],
-    queryFn: getQueueStatus,
-    refetchInterval: 5000, // Refresh every 5s
-  });
-
-  if (isLoading) return <div className="loading">Checking queue status...</div>;
-
+const QueueSection = ({
+  title,
+  metrics,
+  icon,
+}: {
+  title: string;
+  metrics: QueueMetrics;
+  icon: React.ReactNode;
+}) => {
   const stats = [
     {
       label: 'Active',
-      value: queue?.counts.active,
+      value: metrics.counts.active,
       icon: <Activity size={20} className="text-blue" />,
       color: '#3b82f6',
     },
     {
       label: 'Waiting',
-      value: queue?.counts.waiting,
+      value: metrics.counts.waiting,
       icon: <Clock size={20} className="text-yellow" />,
       color: '#f59e0b',
     },
     {
       label: 'Completed',
-      value: queue?.counts.completed,
+      value: metrics.counts.completed,
       icon: <CheckCircle size={20} className="text-green" />,
       color: '#10b981',
     },
     {
       label: 'Failed',
-      value: queue?.counts.failed,
+      value: metrics.counts.failed,
       icon: <AlertCircle size={20} className="text-red" />,
       color: '#ef4444',
     },
   ];
 
   return (
-    <div className="queue-container fade-in">
-      <div className="header-row">
-        <h2 style={{ margin: 0 }}>Processing Queue</h2>
-        <button
-          className="action-btn"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-        >
-          <RefreshCcw size={16} className={isFetching ? 'spin' : ''} />
-          Refresh
-        </button>
-      </div>
+    <div style={{ marginBottom: '3rem' }}>
+      <h3
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          marginBottom: '1rem',
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: '0.5rem',
+        }}
+      >
+        {icon} {title}
+      </h3>
 
-      <div className="stats-grid">
+      <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
         {stats.map((s) => (
           <div key={s.label} className="stat-card" style={{ borderLeft: `4px solid ${s.color}` }}>
             <div className="stat-header">
               {s.icon}
               <span className="stat-label">{s.label}</span>
             </div>
-            <div className="stat-value">{s.value}</div>
+            <div className="stat-value">{s.value || 0}</div>
           </div>
         ))}
       </div>
 
       <div className="queue-sections">
-        {queue?.active.length ? (
+        {metrics.active && metrics.active.length > 0 && (
           <section>
-            <h3 className="section-title">Active Jobs</h3>
+            <h4 className="section-title" style={{ fontSize: '1rem' }}>
+              Active Jobs
+            </h4>
             <div className="jobs-list">
-              {queue.active.map((job) => (
+              {metrics.active.map((job) => (
                 <div key={job.id} className="job-item active">
                   <div className="job-info">
                     <span className="job-name">{job.name}</span>
@@ -97,13 +104,15 @@ export const QueueView = () => {
               ))}
             </div>
           </section>
-        ) : null}
+        )}
 
-        {queue?.waiting.length ? (
+        {metrics.waiting && metrics.waiting.length > 0 && (
           <section>
-            <h3 className="section-title">Waiting in Queue</h3>
+            <h4 className="section-title" style={{ fontSize: '1rem' }}>
+              Waiting in Queue
+            </h4>
             <div className="jobs-list">
-              {queue.waiting.map((job) => (
+              {metrics.waiting.map((job) => (
                 <div key={job.id} className="job-item waiting">
                   <div className="job-info">
                     <span className="job-name">{job.name}</span>
@@ -117,13 +126,15 @@ export const QueueView = () => {
               ))}
             </div>
           </section>
-        ) : null}
+        )}
 
-        {queue?.failed.length ? (
+        {metrics.failed && metrics.failed.length > 0 && (
           <section>
-            <h3 className="section-title">Recently Failed</h3>
+            <h4 className="section-title" style={{ fontSize: '1rem' }}>
+              Recently Failed
+            </h4>
             <div className="jobs-list">
-              {queue.failed.map((job) => (
+              {metrics.failed.map((job) => (
                 <div key={job.id} className="job-item failed">
                   <div className="job-info">
                     <span className="job-name">{job.name}</span>
@@ -139,19 +150,53 @@ export const QueueView = () => {
               ))}
             </div>
           </section>
-        ) : null}
-
-        {!queue?.active.length && !queue?.waiting.length && (
-          <div className="empty-state">
-            <CheckCircle
-              size={48}
-              color="var(--success)"
-              style={{ marginBottom: '1rem', opacity: 0.5 }}
-            />
-            <p>No active or waiting jobs. Everything is processed!</p>
-          </div>
         )}
       </div>
+    </div>
+  );
+};
+
+export const QueueView = () => {
+  const {
+    data: queue,
+    isLoading,
+    refetch,
+    isFetching,
+  } = useQuery({
+    queryKey: ['queue'],
+    queryFn: getQueueStatus,
+    refetchInterval: 5000, // Refresh every 5s
+  });
+
+  if (isLoading) return <div className="loading">Checking queue status...</div>;
+  if (!queue) return <div className="loading">Cannot load queue data from API.</div>;
+
+  return (
+    <div className="queue-container fade-in">
+      <div className="header-row" style={{ marginBottom: '2rem' }}>
+        <h2 style={{ margin: 0 }}>System Queues</h2>
+        <button
+          className="action-btn"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+        >
+          <RefreshCcw size={16} className={isFetching ? 'spin' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      <QueueSection
+        title="Ingestion Queue"
+        metrics={queue.ingestion}
+        icon={<Database size={20} />}
+      />
+      <QueueSection
+        title="Download Queue"
+        metrics={queue.download}
+        icon={<HardDrive size={20} />}
+      />
+      <QueueSection title="Compute Queue" metrics={queue.compute} icon={<Cpu size={20} />} />
     </div>
   );
 };

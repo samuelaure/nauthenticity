@@ -12,7 +12,8 @@ import { logger } from './utils/logger';
 import { errorHandler } from './utils/errorHandler';
 
 // Import Workers (Registers them with BullMQ)
-import './queues/processing.worker';
+import './queues/download.worker';
+import './queues/compute.worker';
 import './queues/ingestion.worker';
 
 // Import Controllers
@@ -48,14 +49,16 @@ fastify.register(fastifyStatic, {
 fastify.setErrorHandler(errorHandler);
 
 import { ingestionQueue } from './queues/ingestion.queue';
-import { processingQueue } from './queues/processing.queue';
+import { downloadQueue } from './queues/download.queue';
+import { computeQueue } from './queues/compute.queue';
 
 // Register Routes/Controllers
 fastify.get('/health', async () => {
-  const [dbHealth, ingestionCount, processingCount] = await Promise.all([
+  const [dbHealth, ingestionCount, processingCount, computeCount] = await Promise.all([
     prisma.$queryRaw`SELECT 1`.then(() => 'ok').catch(() => 'error'),
     ingestionQueue.getJobCounts().catch(() => ({})),
-    processingQueue.getJobCounts().catch(() => ({})),
+    downloadQueue.getJobCounts().catch(() => ({})),
+    computeQueue.getJobCounts().catch(() => ({})),
   ]);
 
   return {
@@ -65,7 +68,8 @@ fastify.get('/health', async () => {
     services: {
       database: dbHealth,
       ingestionQueue: ingestionCount,
-      processingQueue: processingCount,
+      downloadQueue: processingCount,
+      computeQueue: computeCount,
     },
   };
 });
