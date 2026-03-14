@@ -22,8 +22,8 @@ export const ingestionWorker = new Worker(
         try {
           const result = await withTimeout(
             ingestProfile(username, limit),
-            15 * 60 * 1000,
-            `Ingestion for ${username} timed out after 15 minutes`,
+            120 * 60 * 1000, // 2 hours window for massive accounts
+            `Ingestion for ${username} timed out after 2 hours`,
           );
           logger.info(
             `[IngestionWorker] Finished ingestion job for ${username}: Found ${result.found}, Queued ${result.queued}`,

@@ -87,7 +87,7 @@ export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]>
             resultsType: 'details',
             searchLimit: 1,
           },
-          { waitSecs: 300 }, // 5 minute timeout per attempt
+          { waitSecs: 3600 }, // 1 hour timeout per attempt (needed for 5k+ posts)
         );
 
         logger.info(`[Apify] Sidecar scrape finished. Dataset ID: ${run.defaultDatasetId}`);
@@ -117,7 +117,7 @@ export const runInstagramScraper = async (
             profiles: [username],
             maxResults: maxPosts,
           },
-          { waitSecs: 300 },
+          { waitSecs: 3600 },
         );
 
         if (actorRun.status !== 'SUCCEEDED') {

@@ -70,7 +70,7 @@ export const AccountsList = () => {
             value={newLimit}
             onChange={(e) => setNewLimit(Number(e.target.value))}
             min={1}
-            max={500}
+            max={10000}
             title="Max Posts to Scrape"
             style={{
               background: 'var(--bg-card)',
