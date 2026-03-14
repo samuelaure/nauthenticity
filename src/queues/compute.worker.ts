@@ -8,11 +8,12 @@ import ffmpeg from 'fluent-ffmpeg';
 import { transcribeAudio } from '../services/transcription.service';
 import { logContextStorage } from '../utils/context';
 
-interface ComputeVideoData {
+interface ComputeMediaData {
   postId: string;
   mediaId: string;
   filePath: string;
   publicUrl: string;
+  username: string; // Added to help build public URLs
 }
 
 const ensureDir = (dir: string) => {
@@ -25,8 +26,13 @@ export const computeWorker = new Worker(
   'compute-queue',
   async (job: Job<any>) => {
     return logContextStorage.run({ jobId: job.id, ...job.data }, async () => {
+      const { postId, mediaId, filePath, publicUrl, username } = job.data as ComputeMediaData;
+      const userDir = path.dirname(filePath);
+      const thumbFilename = `${mediaId}_thumb.jpg`;
+      const thumbPath = path.join(userDir, thumbFilename);
+      const thumbPublicUrl = `/content/${username}/posts/${thumbFilename}`;
+
       if (job.name === 'compute-video') {
-        const { postId, mediaId, filePath, publicUrl } = job.data as ComputeVideoData;
         logger.info(`[ComputeWorker] Computing Video: ${mediaId}`);
         ensureDir(config.paths.temp);
 
@@ -47,7 +53,6 @@ export const computeWorker = new Worker(
           logger.info(`[ComputeWorker] Transcribing ${mediaId}`);
           const translation = await transcribeAudio(audioPath);
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const jsonPayload = translation as any;
           await prisma.transcript.upsert({
             where: { mediaId: mediaId },
@@ -55,7 +60,21 @@ export const computeWorker = new Worker(
             create: { postId, mediaId, text: translation.text, json: jsonPayload },
           });
 
-          // 2. Optimize Video
+          // 2. Generate Thumbnail (Screenshot)
+          logger.info(`[ComputeWorker] Generating video thumbnail for ${mediaId}`);
+          await new Promise((resolve, reject) => {
+            ffmpeg(filePath)
+              .screenshots({
+                timestamps: [1], // 1 second in
+                filename: thumbFilename,
+                folder: userDir,
+                size: '640x?',
+              })
+              .on('end', resolve)
+              .on('error', reject);
+          });
+
+          // 3. Optimize Video
           logger.info(`[ComputeWorker] Optimizing video for ${mediaId}`);
           await new Promise((resolve, reject) => {
             ffmpeg(filePath)
@@ -74,6 +93,12 @@ export const computeWorker = new Worker(
           // Atomic rename overwriting the original file with the optimized version
           fs.renameSync(optimizedTempFilePath, filePath);
 
+          // Update DB with thumbnail
+          await prisma.media.update({
+            where: { id: mediaId },
+            data: { thumbnailUrl: thumbPublicUrl },
+          });
+
           logger.info(`[ComputeWorker] Video processing complete: ${publicUrl}`);
         } catch (error) {
           logger.error(`[ComputeWorker] Failed to compute video ${mediaId}: ${error}`);
@@ -81,6 +106,22 @@ export const computeWorker = new Worker(
         } finally {
           if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
           if (fs.existsSync(optimizedTempFilePath)) fs.unlinkSync(optimizedTempFilePath);
+        }
+      } else if (job.name === 'compute-image') {
+        logger.info(`[ComputeWorker] Computing Image Thumbnail: ${mediaId}`);
+        try {
+          await new Promise((resolve, reject) => {
+            ffmpeg(filePath).size('640x?').save(thumbPath).on('end', resolve).on('error', reject);
+          });
+
+          await prisma.media.update({
+            where: { id: mediaId },
+            data: { thumbnailUrl: thumbPublicUrl },
+          });
+          logger.info(`[ComputeWorker] Image thumbnail complete: ${thumbPublicUrl}`);
+        } catch (error) {
+          logger.error(`[ComputeWorker] Failed to compute image ${mediaId}: ${error}`);
+          throw error;
         }
       }
     });

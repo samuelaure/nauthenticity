@@ -32,10 +32,17 @@ fastify.register(rateLimit, {
   timeWindow: '1 minute',
 });
 
-// Static assets (Media)
+// Static assets (Media) - Original path
 fastify.register(fastifyStatic, {
   root: path.resolve(__dirname, '../storage'),
   prefix: '/content/',
+});
+
+// Static assets (Media) - Support /api prefix if prepended by frontend or proxy
+fastify.register(fastifyStatic, {
+  root: path.resolve(__dirname, '../storage'),
+  prefix: '/api/content/',
+  decorateReply: false,
 });
 
 // Dashboard Static Files
@@ -76,10 +83,12 @@ fastify.get('/health', async () => {
 
 // SPA Fallback: Serve index.html for non-api routes
 fastify.setNotFoundHandler((request, reply) => {
-  if (request.raw.url?.startsWith('/api') || request.raw.url?.startsWith('/content')) {
+  const url = request.raw.url || '';
+  if (url.startsWith('/api') || url.startsWith('/content')) {
+    // If it reached here, it's a true missing file in /content or a missing API route
     return reply.status(404).send({ error: 'Not Found' });
   }
-  return reply.sendFile('index.html');
+  return reply.sendFile('index.html', path.resolve(__dirname, '../dashboard/dist'));
 });
 
 fastify.register(ingestionController, { prefix: '/api' });

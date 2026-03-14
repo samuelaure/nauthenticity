@@ -78,14 +78,24 @@ export const downloadWorker = new Worker(
             data: { storageUrl: publicUrl },
           });
 
-          // 4. Handoff to Compute Queue for Videos
+          // 4. Handoff to Compute Queue for both Videos (optimization/transcription) and Images (thumbnails)
           if (type === 'video') {
-            logger.info(`[DownloadWorker] Video downloaded. Enqueueing to compute queue.`);
+            logger.info(`[DownloadWorker] Video downloaded. Enqueueing compute job.`);
             await computeQueue.add('compute-video', {
               postId,
               mediaId,
               filePath: finalPath,
               publicUrl,
+              username,
+            });
+          } else {
+            logger.info(`[DownloadWorker] Image downloaded. Enqueueing compute job for thumbnail.`);
+            await computeQueue.add('compute-image', {
+              postId,
+              mediaId,
+              filePath: finalPath,
+              publicUrl,
+              username,
             });
           }
 

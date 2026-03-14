@@ -65,6 +65,7 @@ export interface Media {
   id: string;
   type: 'video' | 'image';
   storageUrl: string;
+  thumbnailUrl?: string; // Added for fast loading
   duration?: number;
 }
 

@@ -1,8 +1,130 @@
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getAccount, getMediaUrl, API_URL } from '../lib/api';
+import { getAccount, getMediaUrl, API_URL, type Post } from '../lib/api';
 import { ArrowLeft, MessageCircle, Heart, Download } from 'lucide-react';
+
+const PostGridItem = ({ post }: { post: Post }) => {
+  const [isHovered, setIsHovered] = React.useState(false);
+  const media = post.media && post.media.length > 0 ? post.media[0] : null;
+  const thumbUrl = media ? getMediaUrl(media.thumbnailUrl || media.storageUrl) : null;
+  const videoUrl = media && media.type === 'video' ? getMediaUrl(media.storageUrl) : null;
+
+  return (
+    <Link
+      to={`/posts/${post.id}`}
+      className="post-card"
+      style={{
+        textDecoration: 'none',
+        position: 'relative',
+        overflow: 'hidden',
+        background: '#1a1a1a',
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Collaborator Badge */}
+      {post.collaborators && post.collaborators.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            padding: '4px 8px 4px 4px',
+            borderRadius: '100px',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
+        >
+          <img
+            src={
+              getMediaUrl(post.collaborators[0].profilePicUrl) || 'https://via.placeholder.com/24'
+            }
+            alt={post.collaborators[0].username}
+            style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
+          />
+          <span style={{ color: 'white', fontSize: '0.75rem', fontWeight: 500 }}>
+            {post.collaborators[0].username}
+          </span>
+        </div>
+      )}
+
+      {media ? (
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+          {media.type === 'video' ? (
+            <>
+              {isHovered ? (
+                <video
+                  src={videoUrl!}
+                  className="post-media"
+                  muted
+                  loop
+                  autoPlay
+                  style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+                />
+              ) : (
+                <img
+                  src={thumbUrl!}
+                  alt="Post Preview"
+                  className="post-media"
+                  style={{ objectFit: 'cover' }}
+                />
+              )}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 5,
+                  right: 5,
+                  background: 'rgba(0,0,0,0.6)',
+                  borderRadius: '4px',
+                  padding: '2px 4px',
+                  fontSize: '0.8rem',
+                  zIndex: 5,
+                }}
+              >
+                🎥
+              </div>
+            </>
+          ) : (
+            <img
+              src={thumbUrl!}
+              alt="Post Preview"
+              className="post-media"
+              style={{ objectFit: 'cover' }}
+            />
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#666',
+          }}
+        >
+          No Media
+        </div>
+      )}
+
+      <div className="post-overlay">
+        <span style={{ color: 'white', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+          <Heart size={16} fill="white" /> {post.likes.toLocaleString()}
+        </span>
+        <span style={{ color: 'white', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+          <MessageCircle size={16} /> {post.comments.toLocaleString()}
+        </span>
+      </div>
+    </Link>
+  );
+};
 
 export const AccountView = () => {
   const { username } = useParams<{ username: string }>();
@@ -11,7 +133,6 @@ export const AccountView = () => {
     queryFn: () => getAccount(username!),
   });
 
-  // Sorting state
   const [sort, setSort] = React.useState<'recent' | 'oldest' | 'likes' | 'comments'>('recent');
 
   if (isLoading) return <div>Loading...</div>;
@@ -60,7 +181,6 @@ export const AccountView = () => {
         </div>
       </div>
 
-      {/* Sorting Controls */}
       <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
         <select
           value={sort}
@@ -103,110 +223,7 @@ export const AccountView = () => {
 
       <div className="posts-grid">
         {sortedPosts.map((post) => (
-          <Link
-            to={`/posts/${post.id}`}
-            key={post.id}
-            className="post-card"
-            style={{ textDecoration: 'none', position: 'relative' }}
-          >
-            {/* Collaborator/Origin Badge */}
-            {post.collaborators && post.collaborators.length > 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  left: 8,
-                  zIndex: 10,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'rgba(0, 0, 0, 0.75)',
-                  backdropFilter: 'blur(4px)',
-                  padding: '4px 8px 4px 4px',
-                  borderRadius: '100px',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                }}
-                title={`Origin: ${post.collaborators[0].username}`}
-              >
-                <img
-                  src={
-                    getMediaUrl(post.collaborators[0].profilePicUrl) ||
-                    'https://via.placeholder.com/24'
-                  }
-                  alt={post.collaborators[0].username}
-                  style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }}
-                />
-                <span
-                  style={{
-                    color: 'white',
-                    fontSize: '0.75rem',
-                    fontWeight: 500,
-                  }}
-                >
-                  {post.collaborators[0].username}
-                </span>
-              </div>
-            )}
-
-            {post.media && post.media.length > 0 ? (
-              post.media[0].type === 'video' ? (
-                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                  <video
-                    src={getMediaUrl(post.media[0].storageUrl)}
-                    className="post-media"
-                    muted
-                    loop
-                    onMouseEnter={(e) => e.currentTarget.play()}
-                    onMouseLeave={(e) => e.currentTarget.pause()}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 5,
-                      right: 5,
-                      background: 'rgba(0,0,0,0.6)',
-                      borderRadius: '4px',
-                      padding: '2px 4px',
-                    }}
-                  >
-                    🎥
-                  </div>
-                </div>
-              ) : (
-                <img
-                  src={getMediaUrl(post.media[0].storageUrl)}
-                  alt="Post"
-                  className="post-media"
-                />
-              )
-            ) : (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: '#222',
-                  color: '#666',
-                }}
-              >
-                No Media
-              </div>
-            )}
-            <div className="post-overlay">
-              <span
-                style={{ color: 'white', display: 'flex', gap: '0.25rem', alignItems: 'center' }}
-              >
-                <Heart size={16} fill="white" /> {post.likes.toLocaleString()}
-              </span>
-              <span
-                style={{ color: 'white', display: 'flex', gap: '0.25rem', alignItems: 'center' }}
-              >
-                <MessageCircle size={16} /> {post.comments.toLocaleString()}
-              </span>
-            </div>
-          </Link>
+          <PostGridItem key={post.id} post={post} />
         ))}
       </div>
     </div>
