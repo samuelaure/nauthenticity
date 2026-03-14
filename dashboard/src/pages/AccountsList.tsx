@@ -15,6 +15,7 @@ export const AccountsList = () => {
     error,
   } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
   const [newUsername, setNewUsername] = useState('');
+  const [newLimit, setNewLimit] = useState<number>(20);
 
   const ingestMutation = useMutation({
     mutationFn: ingestAccount,
@@ -28,7 +29,7 @@ export const AccountsList = () => {
 
   const handleIngest = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newUsername) ingestMutation.mutate(newUsername);
+    if (newUsername) ingestMutation.mutate({ username: newUsername, limit: newLimit });
   };
 
   if (isLoading) return <div>Loading...</div>;
@@ -62,6 +63,22 @@ export const AccountsList = () => {
               color: 'white',
               padding: '0.5rem',
               borderRadius: '6px',
+            }}
+          />
+          <input
+            type="number"
+            value={newLimit}
+            onChange={(e) => setNewLimit(Number(e.target.value))}
+            min={1}
+            max={500}
+            title="Max Posts to Scrape"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              color: 'white',
+              padding: '0.5rem',
+              borderRadius: '6px',
+              width: '80px',
             }}
           />
           <button type="submit" className="action-btn" disabled={ingestMutation.isPending}>

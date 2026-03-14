@@ -117,8 +117,8 @@ export const updatePost = async (
   return data;
 };
 
-export const ingestAccount = async (username: string) => {
-  const { data } = await api.post('/ingest', { username });
+export const ingestAccount = async (payload: { username: string; limit: number }) => {
+  const { data } = await api.post('/ingest', payload);
   return data;
 };
 
