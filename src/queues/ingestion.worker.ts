@@ -21,7 +21,9 @@ export const ingestionWorker = new Worker(
 
         try {
           const result = await withTimeout(
-            ingestProfile(username, limit),
+            ingestProfile(username, limit, async (progress, data) => {
+              await job.updateProgress({ progress, ...data });
+            }),
             120 * 60 * 1000, // 2 hours window for massive accounts
             `Ingestion for ${username} timed out after 2 hours`,
           );

@@ -10,18 +10,31 @@ import {
   Database,
   HardDrive,
   Cpu,
+  Trash2,
+  XCircle,
 } from 'lucide-react';
 import React from 'react';
+import { deleteJob } from '../lib/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 const QueueSection = ({
   title,
   metrics,
   icon,
+  queueName,
 }: {
   title: string;
   metrics: QueueMetrics;
   icon: React.ReactNode;
+  queueName: string;
 }) => {
+  const queryClient = useQueryClient();
+  const deleteMutation = useMutation({
+    mutationFn: ({ id }: { id: string }) => deleteJob(queueName, id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['queue'] });
+    },
+  });
   const stats = [
     {
       label: 'Active',
@@ -96,8 +109,32 @@ const QueueSection = ({
                     </span>
                   </div>
                   {typeof job.progress === 'number' && (
-                    <div className="progress-bar-container">
-                      <div className="progress-bar" style={{ width: `${job.progress}%` }} />
+                    <div className="job-progress-container">
+                      <div className="job-progress-header">
+                        <span className="job-progress-step">
+                          {job.progressData?.step || 'Processing...'}
+                        </span>
+                        <span className="job-progress-value">{job.progress}%</span>
+                      </div>
+                      <div className="progress-bar-container">
+                        <div
+                          className="progress-bar"
+                          style={{
+                            width: `${job.progress}%`,
+                            transition: 'width 0.3s ease-in-out',
+                          }}
+                        />
+                      </div>
+                      <div className="job-progress-meta">
+                        {job.progressData?.postId && (
+                          <span title="Post ID">Post: {job.progressData.postId.slice(0, 8)}...</span>
+                        )}
+                        {job.progressData?.mediaId && (
+                          <span title="Media ID">
+                            Media: {job.progressData.mediaId.slice(0, 8)}...
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -136,12 +173,24 @@ const QueueSection = ({
             <div className="jobs-list">
               {metrics.failed.map((job) => (
                 <div key={job.id} className="job-item failed">
-                  <div className="job-info">
-                    <span className="job-name">{job.name}</span>
-                    <span className="job-id">#{job.id}</span>
+                  <div className="job-header-row">
+                    <div className="job-info">
+                      <span className="job-name">{job.name}</span>
+                      <span className="job-id">#{job.id}</span>
+                    </div>
+                    <button
+                      className="icon-btn delete-btn"
+                      onClick={() => deleteMutation.mutate({ id: job.id })}
+                      title="Ignore/Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                   <div className="job-details">
-                    <span className="error-msg">{job.failedReason}</span>
+                    <span className="error-msg">
+                      <XCircle size={12} className="inline mr-1" />
+                      {job.failedReason}
+                    </span>
                     <span>
                       Failed {formatDistanceToNow(new Date(job.finishedOn || job.timestamp))} ago
                     </span>
@@ -190,13 +239,20 @@ export const QueueView = () => {
         title="Ingestion Queue"
         metrics={queue.ingestion}
         icon={<Database size={20} />}
+        queueName="ingestion"
       />
       <QueueSection
         title="Download Queue"
         metrics={queue.download}
         icon={<HardDrive size={20} />}
+        queueName="download"
       />
-      <QueueSection title="Compute Queue" metrics={queue.compute} icon={<Cpu size={20} />} />
+      <QueueSection
+        title="Compute Queue"
+        metrics={queue.compute}
+        icon={<Cpu size={20} />}
+        queueName="compute"
+      />
     </div>
   );
 };

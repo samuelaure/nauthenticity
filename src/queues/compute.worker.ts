@@ -59,6 +59,8 @@ export const computeWorker = new Worker(
       const publicUrl = media.storageUrl;
 
       if (job.name === 'compute-video') {
+        const totalSteps = 4;
+        await job.updateProgress({ progress: 10, step: '1/4: Checking existing...', mediaId, postId });
         logger.info(`[ComputeWorker] Computing Video: ${mediaId} (${username})`);
         
         // Check if we even need to work
@@ -100,6 +102,7 @@ export const computeWorker = new Worker(
               update: { text: translation.text, json: jsonPayload },
               create: { postId, mediaId, text: translation.text, json: jsonPayload },
             });
+            await job.updateProgress({ progress: 40, step: '2/4: Transcription finished', mediaId, postId });
           } else {
             logger.info(`[ComputeWorker] Transcript already exists for ${mediaId}, skipping AI.`);
           }
@@ -118,6 +121,7 @@ export const computeWorker = new Worker(
                 .on('end', resolve)
                 .on('error', reject);
             });
+            await job.updateProgress({ progress: 60, step: '3/4: Thumbnail generated', mediaId, postId });
 
             // 3. Optimize Video (We only optimize when we generate a new thumbnail usually, 
             // or if we want to ensure all videos are lean. Let's keep it tied to thumbnail generation 
@@ -136,6 +140,7 @@ export const computeWorker = new Worker(
                 .on('end', resolve)
                 .on('error', reject);
             });
+            await job.updateProgress({ progress: 90, step: '4/4: Optimization finished', mediaId, postId });
 
             // Atomic rename overwriting the original file with the optimized version
             atomicMove(optimizedTempFilePath, filePath);

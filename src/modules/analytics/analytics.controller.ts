@@ -41,10 +41,12 @@ export const analyticsController = async (fastify: FastifyInstance) => {
         data: j.data,
         timestamp: j.timestamp,
         failedReason: j.failedReason,
-        progress: j.progress,
+        progress: typeof j.progress === 'object' ? j.progress.progress : j.progress,
+        progressData: typeof j.progress === 'object' ? j.progress : {},
         processedOn: j.processedOn,
         finishedOn: j.finishedOn,
         opts: j.opts,
+        attemptsMade: j.attemptsMade,
       });
 
       return {
@@ -120,6 +122,27 @@ export const analyticsController = async (fastify: FastifyInstance) => {
     } catch (e) {
       request.log.error(e);
       return reply.status(500).send({ error: 'Failed to clear jobs' });
+    }
+  });
+
+  fastify.post('/queue/delete-job', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { queueName, jobId } = request.body as { queueName: string; jobId: string };
+      if (!queueName || !jobId) return reply.status(400).send({ error: 'Missing parameters' });
+
+      let job;
+      if (queueName === 'ingestion') job = await ingestionQueue.getJob(jobId);
+      else if (queueName === 'download') job = await downloadQueue.getJob(jobId);
+      else if (queueName === 'compute') job = await computeQueue.getJob(jobId);
+
+      if (job) {
+        await job.remove();
+        return { status: 'ok', message: 'Job removed' };
+      }
+      return reply.status(404).send({ error: 'Job not found' });
+    } catch (e) {
+      request.log.error(e);
+      return reply.status(500).send({ error: 'Failed to delete job' });
     }
   });
 };

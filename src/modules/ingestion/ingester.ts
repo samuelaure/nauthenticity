@@ -3,7 +3,11 @@ import { prisma } from '../../db/prisma';
 import { downloadQueue } from '../../queues/download.queue';
 import { logger } from '../../utils/logger';
 
-export const ingestProfile = async (username: string, maxPosts = 10) => {
+export const ingestProfile = async (
+  username: string,
+  maxPosts = 10,
+  onProgress?: (progress: number, data?: any) => Promise<void>,
+) => {
   logger.info(`[Ingester] Starting ingestion for ${username}`);
 
   // 0. Ensure Account exists (Identity)
@@ -83,12 +87,23 @@ export const ingestProfile = async (username: string, maxPosts = 10) => {
     runId = run.id;
   }
 
+  if (onProgress) await onProgress(10, { step: 'Scrape finished, processing posts...' });
+
   logger.info(`[Ingester] Processing ${items.length} posts. Saving to DB...`);
 
   let queuedCount = 0;
 
-  for (const item of items) {
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
     try {
+      // Progress from 10 to 90
+      if (onProgress && idx % 10 === 0) {
+        const p = 10 + Math.floor((idx / items.length) * 80);
+        await onProgress(p, {
+          step: `Processing post ${idx + 1}/${items.length}`,
+          currentPost: item.id || item.shortcode,
+        });
+      }
       // 2. Data Mapping (Resiliency for different actors)
       const instagramUrl =
         item.url || (item.shortcode ? `https://www.instagram.com/p/${item.shortcode}/` : null);

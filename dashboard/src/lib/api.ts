@@ -75,10 +75,12 @@ export interface QueueJob {
   data: any;
   timestamp: number;
   failedReason?: string;
-  progress: number | any;
+  progress: number;
+  progressData?: any;
   processedOn?: number;
   finishedOn?: number;
   opts: any;
+  attemptsMade?: number;
 }
 
 export interface QueueMetrics {
@@ -131,6 +133,11 @@ export const ingestAccount = async (payload: { username: string; limit: number }
 
 export const getQueueStatus = async () => {
   const { data } = await api.get<QueueStatus>('/queue');
+  return data;
+};
+
+export const deleteJob = async (queueName: string, jobId: string) => {
+  const { data } = await api.post('/queue/delete-job', { queueName, jobId });
   return data;
 };
 

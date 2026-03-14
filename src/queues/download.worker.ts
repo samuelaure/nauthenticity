@@ -77,7 +77,30 @@ export const downloadWorker = new Worker(
             if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await pipeline(response.body as any, createWriteStream(tempFilePath));
+            const writeStream = createWriteStream(tempFilePath);
+            const totalSize = Number(response.headers.get('content-length')) || 0;
+            let downloaded = 0;
+
+            if (response.body) {
+              const reader = response.body.getReader();
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                downloaded += value.length;
+                writeStream.write(value);
+                
+                if (totalSize > 0) {
+                  const progress = Math.round((downloaded / totalSize) * 100);
+                  await job.updateProgress({ 
+                    progress, 
+                    step: `Downloading...`,
+                    mediaId,
+                    postId 
+                  });
+                }
+              }
+              writeStream.end();
+            }
 
           // 2. Atomic rename to final path (prevents partial reads by other components)
           atomicMove(tempFilePath, finalPath);
