@@ -102,9 +102,9 @@ const QueueSection = ({
                     <span className="job-name">{job.name}</span>
                     <span className="job-id">#{job.id}</span>
                   </div>
-                  <div className="job-details">
+                  <div className="job-details" style={{ minWidth: 0 }}>
                     {job.data?.username && <span>@{job.data.username}</span>}
-                    <span>
+                    <span style={{ whiteSpace: 'nowrap' }}>
                       Started {formatDistanceToNow(new Date(job.processedOn || job.timestamp))} ago
                     </span>
                   </div>
@@ -174,24 +174,24 @@ const QueueSection = ({
               {metrics.failed.map((job) => (
                 <div key={job.id} className="job-item failed">
                   <div className="job-header-row">
-                    <div className="job-info">
-                      <span className="job-name">{job.name}</span>
+                    <span className="job-name">{job.name}</span>
+                    <div className="job-header-actions">
                       <span className="job-id">#{job.id}</span>
+                      <button
+                        className="icon-btn delete-btn"
+                        onClick={() => deleteMutation.mutate({ id: job.id })}
+                        title="Ignore/Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <button
-                      className="icon-btn delete-btn"
-                      onClick={() => deleteMutation.mutate({ id: job.id })}
-                      title="Ignore/Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   </div>
-                  <div className="job-details">
+                  <div className="job-details" style={{ minWidth: 0 }}>
                     <span className="error-msg">
-                      <XCircle size={12} className="inline mr-1" />
-                      {job.failedReason}
+                      <XCircle size={12} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span>{job.failedReason}</span>
                     </span>
-                    <span>
+                    <span style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                       Failed {formatDistanceToNow(new Date(job.finishedOn || job.timestamp))} ago
                     </span>
                   </div>

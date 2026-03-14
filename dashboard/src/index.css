@@ -295,6 +295,8 @@ body {
   flex-direction: column;
   gap: 0.75rem;
   transition: background 0.2s;
+  min-width: 0; /* Important! */
+  overflow: hidden;
 }
 
 .job-item:hover {
@@ -347,8 +349,12 @@ body {
   color: #ef4444;
   font-weight: 500;
   display: flex;
-  align-items: center;
-  gap: 0.25rem;
+  align-items: flex-start;
+  gap: 0.5rem;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  width: 100%;
 }
 
 .job-progress-container {
@@ -376,29 +382,45 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
+  gap: 1rem;
+}
+
+.job-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .icon-btn {
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 0.4rem;
-  border-radius: 4px;
+  padding: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .icon-btn:hover {
   background: var(--bg-app);
   color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.delete-btn {
+  color: #ff4d4f; /* Bright red */
 }
 
 .delete-btn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  color: #fff;
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+  box-shadow: 0 0 10px rgba(255, 77, 79, 0.3);
 }
 
 .mr-1 { margin-right: 0.25rem; }

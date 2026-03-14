@@ -45,8 +45,9 @@ export const computeWorker = new Worker(
 
       // storageUrl is e.g. "/content/violeta_homeschool/posts/abc.mp4"
       // we need to map it to local filesystem path
-      if (!media.storageUrl.startsWith('/content/')) {
-        throw new Error(`[ComputeWorker] Media ${mediaId} is not yet local (${media.storageUrl}). Postponing.`);
+      if (!media.storageUrl || !media.storageUrl.startsWith('/content/')) {
+        const urlStr = media.storageUrl || 'null';
+        throw new Error(`[ComputeWorker] Media ${mediaId} not yet downloaded. Local path missing (Current: ${urlStr}). Postponing.`);
       }
 
       const relativePath = media.storageUrl.replace('/content/', '');
