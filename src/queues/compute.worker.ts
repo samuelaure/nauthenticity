@@ -11,9 +11,8 @@ import { logContextStorage } from '../utils/context';
 interface ComputeMediaData {
   postId: string;
   mediaId: string;
-  filePath: string;
-  publicUrl: string;
-  username: string; // Added to help build public URLs
+  type: 'video' | 'image'; // Added back to help compute extension
+  username: string;
 }
 
 const ensureDir = (dir: string) => {
@@ -22,18 +21,41 @@ const ensureDir = (dir: string) => {
   }
 };
 
+const atomicMove = (oldPath: string, newPath: string) => {
+  try {
+    fs.renameSync(oldPath, newPath);
+  } catch (err: any) {
+    if (err.code === 'EXDEV') {
+      fs.copyFileSync(oldPath, newPath);
+      fs.unlinkSync(oldPath);
+    } else {
+      throw err;
+    }
+  }
+};
+
 export const computeWorker = new Worker(
   'compute-queue',
   async (job: Job<any>) => {
     return logContextStorage.run({ jobId: job.id, ...job.data }, async () => {
-      const { postId, mediaId, filePath, publicUrl, username } = job.data as ComputeMediaData;
-      const userDir = path.dirname(filePath);
+      const { postId, mediaId, type, username } = job.data as ComputeMediaData;
+      
+      const media = await prisma.media.findUnique({ where: { id: mediaId } });
+      if (!media) throw new Error(`[ComputeWorker] Media ${mediaId} not found in DB`);
+
+      // storageUrl is e.g. "/content/violeta_homeschool/posts/abc.mp4"
+      // we need to map it to local filesystem path
+      const relativePath = media.storageUrl.replace('/content/', '');
+      const filePath = path.join(config.paths.storage, relativePath);
+      
+      const userDir = path.join(config.paths.storage, username, 'posts');
       const thumbFilename = `${mediaId}_thumb.jpg`;
       const thumbPath = path.join(userDir, thumbFilename);
       const thumbPublicUrl = `/content/${username}/posts/${thumbFilename}`;
+      const publicUrl = media.storageUrl;
 
       if (job.name === 'compute-video') {
-        logger.info(`[ComputeWorker] Computing Video: ${mediaId}`);
+        logger.info(`[ComputeWorker] Computing Video: ${mediaId} (${username})`);
         ensureDir(config.paths.temp);
 
         const audioPath = path.join(config.paths.temp, `${mediaId}.mp3`);
@@ -41,13 +63,17 @@ export const computeWorker = new Worker(
 
         try {
           if (!fs.existsSync(filePath)) {
-            throw new Error(`[ComputeWorker] File not found perfectly at ${filePath}`);
+            throw new Error(`[ComputeWorker] File not found at ${filePath}`);
           }
 
           // 1. Extract Audio & Transcribe
           logger.info(`[ComputeWorker] Extracting audio for ${mediaId}`);
           await new Promise((resolve, reject) => {
-            ffmpeg(filePath).toFormat('mp3').on('end', resolve).on('error', reject).save(audioPath);
+            ffmpeg(filePath)
+              .toFormat('mp3')
+              .on('end', resolve)
+              .on('error', reject)
+              .save(audioPath);
           });
 
           logger.info(`[ComputeWorker] Transcribing ${mediaId}`);
@@ -91,7 +117,7 @@ export const computeWorker = new Worker(
           });
 
           // Atomic rename overwriting the original file with the optimized version
-          fs.renameSync(optimizedTempFilePath, filePath);
+          atomicMove(optimizedTempFilePath, filePath);
 
           // Update DB with thumbnail
           await prisma.media.update({
@@ -108,10 +134,17 @@ export const computeWorker = new Worker(
           if (fs.existsSync(optimizedTempFilePath)) fs.unlinkSync(optimizedTempFilePath);
         }
       } else if (job.name === 'compute-image') {
-        logger.info(`[ComputeWorker] Computing Image Thumbnail: ${mediaId}`);
+        logger.info(`[ComputeWorker] Computing Image Thumbnail: ${mediaId} (${username})`);
         try {
+          if (!fs.existsSync(filePath)) {
+            throw new Error(`[ComputeWorker] Image file not found at ${filePath}`);
+          }
           await new Promise((resolve, reject) => {
-            ffmpeg(filePath).size('640x?').save(thumbPath).on('end', resolve).on('error', reject);
+            ffmpeg(filePath)
+              .size('640x?')
+              .save(thumbPath)
+              .on('end', resolve)
+              .on('error', reject);
           });
 
           await prisma.media.update({

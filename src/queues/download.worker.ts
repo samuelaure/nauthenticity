@@ -29,6 +29,19 @@ const ensureDir = (dir: string) => {
   }
 };
 
+const atomicMove = (oldPath: string, newPath: string) => {
+  try {
+    fs.renameSync(oldPath, newPath);
+  } catch (err: any) {
+    if (err.code === 'EXDEV') {
+      fs.copyFileSync(oldPath, newPath);
+      fs.unlinkSync(oldPath);
+    } else {
+      throw err;
+    }
+  }
+};
+
 export const downloadWorker = new Worker(
   'download-queue',
   async (job: Job<any>) => {
@@ -66,11 +79,11 @@ export const downloadWorker = new Worker(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await pipeline(response.body as any, createWriteStream(tempFilePath));
 
-            // 2. Atomic rename to final path (prevents partial reads by other components)
-            fs.renameSync(tempFilePath, finalPath);
-          } else {
-            logger.info(`[DownloadWorker] File already exists at final path, skipping download.`);
-          }
+          // 2. Atomic rename to final path (prevents partial reads by other components)
+          atomicMove(tempFilePath, finalPath);
+        } else {
+          logger.info(`[DownloadWorker] File already exists at final path, skipping download.`);
+        }
 
           // 3. Update DB (for both image and video, it is now local)
           await prisma.media.update({
@@ -84,8 +97,7 @@ export const downloadWorker = new Worker(
             await computeQueue.add('compute-video', {
               postId,
               mediaId,
-              filePath: finalPath,
-              publicUrl,
+              type,
               username,
             });
           } else {
@@ -93,8 +105,7 @@ export const downloadWorker = new Worker(
             await computeQueue.add('compute-image', {
               postId,
               mediaId,
-              filePath: finalPath,
-              publicUrl,
+              type,
               username,
             });
           }

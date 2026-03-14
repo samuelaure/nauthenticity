@@ -28,27 +28,27 @@ const fastify = Fastify({
 // Configure Plugins
 fastify.register(cors, { origin: true });
 fastify.register(rateLimit, {
-  max: 100,
+  max: 10000,
   timeWindow: '1 minute',
 });
 
-// Static assets (Media) - Original path
-fastify.register(fastifyStatic, {
-  root: path.resolve(__dirname, '../storage'),
-  prefix: '/content/',
-});
-
-// Static assets (Media) - Support /api prefix if prepended by frontend or proxy
-fastify.register(fastifyStatic, {
-  root: path.resolve(__dirname, '../storage'),
-  prefix: '/api/content/',
-  decorateReply: false,
-});
-
-// Dashboard Static Files
+// 1. Dashboard Static Files (Primary Decorator)
 fastify.register(fastifyStatic, {
   root: path.resolve(__dirname, '../dashboard/dist'),
   prefix: '/',
+});
+
+// 2. Static assets (Media) - Original path
+fastify.register(fastifyStatic, {
+  root: path.resolve(__dirname, '../storage'),
+  prefix: '/content/',
+  decorateReply: false,
+});
+
+// 3. Static assets (Media) - Support /api prefix
+fastify.register(fastifyStatic, {
+  root: path.resolve(__dirname, '../storage'),
+  prefix: '/api/content/',
   decorateReply: false,
 });
 
@@ -85,10 +85,10 @@ fastify.get('/health', async () => {
 fastify.setNotFoundHandler((request, reply) => {
   const url = request.raw.url || '';
   if (url.startsWith('/api') || url.startsWith('/content')) {
-    // If it reached here, it's a true missing file in /content or a missing API route
     return reply.status(404).send({ error: 'Not Found' });
   }
-  return reply.sendFile('index.html', path.resolve(__dirname, '../dashboard/dist'));
+  // This will now correctly look in /app/dashboard/dist because it's the primary decorator
+  return reply.sendFile('index.html');
 });
 
 fastify.register(ingestionController, { prefix: '/api' });
