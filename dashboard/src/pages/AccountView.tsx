@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getAccount, getMediaUrl } from '../lib/api';
-import { ArrowLeft, MessageCircle, Heart } from 'lucide-react';
+import { getAccount, getMediaUrl, API_URL } from '../lib/api';
+import { ArrowLeft, MessageCircle, Heart, Download } from 'lucide-react';
 
 export const AccountView = () => {
   const { username } = useParams<{ username: string }>();
@@ -78,6 +78,27 @@ export const AccountView = () => {
           <option value="likes">Most Likes</option>
           <option value="comments">Most Comments</option>
         </select>
+
+        <a
+          href={`${API_URL}/accounts/${username}/export/txt`}
+          download
+          className="btn-secondary"
+          style={{
+            textDecoration: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.5rem 1rem',
+            fontSize: '0.875rem',
+            borderRadius: '4px',
+            background: 'var(--accent-primary)',
+            color: 'white',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <Download size={16} /> Export to TXT
+        </a>
       </div>
 
       <div className="posts-grid">

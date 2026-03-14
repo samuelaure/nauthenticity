@@ -41,6 +41,57 @@ export const contentController = async (fastify: FastifyInstance) => {
     }
   });
 
+  fastify.get(
+    '/accounts/:username/export/txt',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { username } = request.params as { username: string };
+      try {
+        const account = await prisma.account.findUnique({
+          where: { username },
+          include: {
+            posts: {
+              orderBy: { postedAt: 'desc' },
+              include: {
+                transcripts: true,
+              },
+            },
+          },
+        });
+
+        if (!account) return reply.status(404).send({ error: 'Account not found' });
+
+        let output = `DATA EXPORT FOR: ${account.username}\n`;
+        output += `Generated on: ${new Date().toISOString()}\n`;
+        output += `Total Posts: ${account.posts.length}\n`;
+        output += `==================================================\n\n`;
+
+        for (const post of account.posts) {
+          output += `Post ID: ${post.id}\n`;
+          output += `URL: ${post.instagramUrl}\n`;
+          output += `Posted At: ${post.postedAt.toISOString()}\n`;
+          output += `Caption:\n${post.caption || '(No caption)'}\n\n`;
+
+          const transcript = post.transcripts[0];
+          if (transcript) {
+            output += `Transcription:\n${transcript.text}\n`;
+          } else {
+            output += `Transcription: N/A\n`;
+          }
+
+          output += `\n--------------------------------------------------\n\n`;
+        }
+
+        reply
+          .header('Content-Type', 'text/plain; charset=utf-8')
+          .header('Content-Disposition', `attachment; filename="${username}_export.txt"`)
+          .send(output);
+      } catch (e) {
+        request.log.error(e);
+        return reply.status(500).send({ error: 'Failed to generate export' });
+      }
+    },
+  );
+
   fastify.get('/posts/:id', async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     try {
