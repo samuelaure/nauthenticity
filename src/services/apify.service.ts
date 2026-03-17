@@ -24,6 +24,60 @@ export interface ApifyInstagramPost {
   sidecarMedia?: { type: 'image' | 'video'; url: string }[];
 }
 
+export interface NauIGProfile {
+  id: string;
+  username: string;
+  fullName?: string;
+  biography?: string;
+  profilePicUrl: string;
+  profilePicUrlHD?: string;
+  followersCount?: number;
+  followsCount?: number;
+  postsCount?: number;
+  externalUrl?: string;
+  isBusinessAccount?: boolean;
+  isVerified?: boolean;
+}
+
+export interface NauIGPostMedia {
+  type: 'image' | 'video';
+  url: string;
+  width?: number;
+  height?: number;
+  thumbnail?: string;
+  viewCount?: number;
+}
+
+export interface NauIGPost {
+  id: string;
+  shortcode: string;
+  url: string;
+  caption: string;
+  takenAt: string;
+  likesCount: number;
+  commentsCount: number;
+  videoViewCount?: number;
+  author: {
+    id: string;
+    username: string;
+    fullName?: string;
+    profilePicUrl?: string;
+    isVerified?: boolean;
+    isOwner?: boolean;
+  };
+  hashtags?: string[];
+  mentions?: string[];
+  media: NauIGPostMedia[];
+  isPinned: boolean;
+  isReel: boolean;
+  productType: string;
+  music?: {
+    id: string;
+    title: string;
+    artist: string;
+  };
+}
+
 interface RawApifyPost {
   // Base fields
   id: string;
@@ -72,6 +126,119 @@ interface RawApifyPost {
   }>;
 }
 
+// --- Mapping Helpers ---
+
+const mapNauPostToApifyPost = (post: NauIGPost): any => {
+  const firstMedia = post.media[0];
+  return {
+    id: post.id,
+    shortcode: post.shortcode, // Ingester expects lowercase
+    shortCode: post.shortcode,
+    url: post.url,
+    caption: post.caption,
+    timestamp: post.takenAt,
+    posted: post.takenAt, // Ingester fallback
+    likesCount: post.likesCount,
+    likes: post.likesCount, // Ingester fallback
+    commentsCount: post.commentsCount,
+    comments: post.commentsCount, // Ingester fallback
+    displayUrl: firstMedia?.thumbnail || firstMedia?.url || '',
+    isVideo: firstMedia?.type === 'video',
+    videoUrl: firstMedia?.type === 'video' ? firstMedia.url : undefined,
+    video_links: firstMedia?.type === 'video' ? [firstMedia.url] : [], // Ingester fallback
+    ownerUsername: post.author.username,
+    ownerId: post.author.id,
+    productType: post.productType,
+    sidecarMedia: post.media.map((m) => ({
+      type: m.type,
+      url: m.url,
+    })),
+  };
+};
+
+const mapNauProfileToApifyProfile = (profile: NauIGProfile): ApifyProfileInfo => {
+  return {
+    username: profile.username,
+    fullName: profile.fullName,
+    biography: profile.biography,
+    profilePicUrl: profile.profilePicUrl,
+    profilePicUrlHD: profile.profilePicUrlHD,
+    followersCount: profile.followersCount,
+    followsCount: profile.followsCount,
+    postsCount: profile.postsCount,
+    externalUrl: profile.externalUrl,
+    isBusinessAccount: profile.isBusinessAccount,
+    verified: profile.isVerified,
+  };
+};
+
+// --- Universal Scraper (New) ---
+
+export const runUniversalInstagramScraper = async (
+  username: string,
+  maxPosts = 10,
+  onStatus?: (message: string) => Promise<void>,
+): Promise<{ profile: NauIGProfile; items: NauIGPost[]; runId: string; datasetId: string }> => {
+  logger.info(
+    `[Apify] Starting universal scrape for ${username} (limit: ${maxPosts}) using actor ${config.apify.instagramUniversalActorId}...`,
+  );
+
+  const { items, run } = await withRetry(
+    async () => {
+      if (onStatus) await onStatus('Waiting for Apify actor to start and fetch initial data...');
+      
+      const actorRun = await client.actor(config.apify.instagramUniversalActorId).call(
+        {
+          mode: 'FEED',
+          usernames: [username],
+          limit: maxPosts,
+          sortDirection: 'desc',
+          proxyConfiguration: { useApifyProxy: true },
+        },
+        { waitSecs: 3600, memory: 1024 } as any,
+      );
+
+      // Report runId so it can be aborted if needed
+      if (onStatus) await onStatus(`Run ID: ${actorRun.id}`);
+
+      if (actorRun.status !== 'SUCCEEDED') {
+        logger.warn(`[Apify] Actor run ${actorRun.id} status: ${actorRun.status}`);
+        // If aborted or failed, we might want to stop retrying depending on the case
+        if (actorRun.status === 'ABORTED' || actorRun.status === 'TIMED-OUT') {
+          const err = new Error(`Apify actor run status: ${actorRun.status}`);
+          (err as any).noRetry = true;
+          throw err;
+        }
+        throw new Error(`Apify actor run status: ${actorRun.status}`);
+      }
+
+      if (onStatus) await onStatus(`Scraping finished. Fetching results...`);
+
+      const { items: datasetItems } = await client.dataset(actorRun.defaultDatasetId).listItems({
+        limit: maxPosts + 10, // Ensure we get the profile + all requested posts
+      });
+      return { items: datasetItems as any[], run: actorRun };
+    },
+    { attempts: 3, delay: 5000, factor: 2 },
+  );
+
+  if (items.length === 0) {
+    throw new Error(`[Apify] No items returned for ${username}`);
+  }
+
+  const profile = items[0] as NauIGProfile;
+  const posts = items.slice(1) as NauIGPost[];
+
+  return {
+    profile,
+    items: posts,
+    runId: run.id,
+    datasetId: run.defaultDatasetId,
+  };
+};
+
+// --- Legacy Functions ---
+
 // Actor: apify/instagram-scraper
 export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]> => {
   if (urls.length === 0) return [];
@@ -87,7 +254,7 @@ export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]>
             resultsType: 'details',
             searchLimit: 1,
           },
-          { waitSecs: 3600 }, // 1 hour timeout per attempt (needed for 5k+ posts)
+          { waitSecs: 3600, memory: 1024 } as any, // 1 hour timeout per attempt (needed for 5k+ posts)
         );
 
         logger.info(`[Apify] Sidecar scrape finished. Dataset ID: ${run.defaultDatasetId}`);
@@ -103,13 +270,32 @@ export const runSidecarScraper = async (urls: string[]): Promise<RawApifyPost[]>
   }
 };
 
-// Actor: perfectscrape/mass-instagram-profile-posts-scraper (Main)
-// ID: gcfjdE6gC9K5aGsgi
+// Actor: perfectscrape/mass-instagram-profile-posts-scraper (Legacy) -> Now using Universal
 export const runInstagramScraper = async (
   username: string,
   maxPosts = 10,
+  onStatus?: (message: string) => Promise<void>,
 ): Promise<{ items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
   try {
+    // We now use the universal scraper but map it to the old format for stability
+    const { profile: _, items, runId, datasetId } = await runUniversalInstagramScraper(
+      username,
+      maxPosts,
+      onStatus,
+    );
+
+    const mappedItems = items.map(mapNauPostToApifyPost);
+
+    return {
+      items: mappedItems,
+      datasetId,
+      actorRunId: runId,
+    };
+  } catch (error: any) {
+    logger.error(`[Apify] Error running universal instagram scraper: ${error.message}`);
+
+    // If needed to go back, uncomment the legacy implementation below
+    /*
     const { items, run } = await withRetry(
       async () => {
         const actorRun = await client.actor(config.apify.instagramPostActorId).call(
@@ -117,141 +303,8 @@ export const runInstagramScraper = async (
             profiles: [username],
             maxResults: maxPosts,
           },
-          { waitSecs: 3600 },
-        );
-
-        if (actorRun.status !== 'SUCCEEDED') {
-          throw new Error(`Apify actor run status: ${actorRun.status}`);
-        }
-
-        const { items: rawItems } = await client.dataset(actorRun.defaultDatasetId).listItems();
-        return { items: rawItems as unknown as RawApifyPost[], run: actorRun };
-      },
-      { attempts: 3, delay: 5000, factor: 2 },
-    );
-
-    logger.info(`[Apify] Post scrape finished. Dataset ID: ${run.defaultDatasetId}`);
-
-    // Identify Sidecars
-    const sidecarUrls: string[] = [];
-    const sidecarMap = new Map<string, RawApifyPost>();
-
-    items.forEach((item) => {
-      const vidLen = item.video_links?.length || 0;
-      const imgLen = item.image_links?.length || 0;
-
-      // User logic: "if there are more than one item between both arrays"
-      if (vidLen + imgLen > 1) {
-        const shortCode = item.shortcode || item.shortCode || item.short_code;
-        if (shortCode) {
-          const url = `https://www.instagram.com/p/${shortCode}/`;
-          sidecarUrls.push(url);
-        }
-      }
-    });
-
-    if (sidecarUrls.length > 0) {
-      logger.info(`[Apify] Found ${sidecarUrls.length} sidecars. Fetching details...`);
-      const sidecarItems = await runSidecarScraper(sidecarUrls);
-
-      sidecarItems.forEach((sItem) => {
-        // Map by shortcode or URL to match original items
-        const sc = sItem.shortcode || sItem.shortCode || sItem.short_code;
-        if (sc) sidecarMap.set(sc, sItem);
-        // Also map by full URL just in case
-        if (sItem.url) sidecarMap.set(sItem.url, sItem);
-      });
-    }
-
-    const mappedItems: ApifyInstagramPost[] = items.map((item) => {
-      let sidecarMedia: { type: 'image' | 'video'; url: string }[] = [];
-      const shortCode = item.shortcode || item.shortCode || item.short_code || item.id;
-
-      // Check if we have better data from sidecar scrape
-      if (sidecarMap.has(shortCode as string)) {
-        const enriched = sidecarMap.get(shortCode as string)!;
-
-        // Extract from enriched data (apify/instagram-scraper format)
-        // usually 'childPosts' or 'carousel_media'
-        if (enriched.carousel_media) {
-          enriched.carousel_media.forEach((m) => {
-            if (m.video_versions && m.video_versions.length > 0) {
-              sidecarMedia.push({ type: 'video', url: m.video_versions[0].url });
-            } else if (m.image_versions2 && m.image_versions2.candidates.length > 0) {
-              sidecarMedia.push({ type: 'image', url: m.image_versions2.candidates[0].url });
-            }
-          });
-        } else if (enriched.childPosts) {
-          enriched.childPosts.forEach((cp) => {
-            if (cp.type === 'Video' && cp.videoUrl) {
-              sidecarMedia.push({ type: 'video', url: cp.videoUrl });
-            } else if (cp.displayUrl) {
-              sidecarMedia.push({ type: 'image', url: cp.displayUrl });
-            }
-          });
-        }
-      } else {
-        // Fallback to Main Actor data (video_links / image_links)
-        // NOTE: Main actor provides flat lists, we don't know the order/pairing exactly,
-        // but user said to use sidecar actor for sidecars.
-        // The instruction implies we ONLY use main actor data if it's NOT a sidecar or if sidecar fetch failed.
-        // But if it IS a sidecar (implied by >1 item), we hopefully got data.
-        // If not, we fall back to what we have.
-
-        if (item.video_links) {
-          item.video_links.forEach((v) => sidecarMedia.push({ type: 'video', url: v }));
-        }
-        if (item.image_links) {
-          item.image_links.forEach((i) => sidecarMedia.push({ type: 'image', url: i }));
-        }
-        // Deduplicate if needed?
-      }
-
-      // Single Media Fallback (if sidecarMedia is empty)
-      if (sidecarMedia.length === 0) {
-        const vUrl = item.videoUrl || item.video_url || (item.video_links && item.video_links[0]);
-        if (vUrl) {
-          sidecarMedia.push({ type: 'video', url: vUrl });
-        } else {
-          const iUrl =
-            item.displayUrl ||
-            item.display_url ||
-            item.thumbnail ||
-            (item.image_links && item.image_links[0]);
-          if (iUrl) sidecarMedia.push({ type: 'image', url: iUrl });
-        }
-      }
-
-      const itemUrl = item.url || (shortCode ? `https://www.instagram.com/p/${shortCode}/` : '');
-
-      return {
-        id: item.id as string,
-        shortCode: shortCode as string,
-        url: itemUrl as string,
-        caption: item.caption || '',
-        timestamp: item.posted || item.timestamp || new Date().toISOString(),
-        likesCount: item.likesCount || item.likes_count || item.likes || 0,
-        commentsCount: item.commentsCount || item.comments_count || item.comments || 0,
-        displayUrl: item.displayUrl || item.display_url || item.thumbnail || '',
-        isVideo: (item.is_video ??
-          (!!item.videoUrl ||
-            !!item.video_url ||
-            (item.video_links && item.video_links.length > 0))) as boolean,
-        videoUrl: item.videoUrl || item.video_url || (item.video_links && item.video_links[0]),
-        ownerUsername: item.ownerUsername || item.owner_username || item.account_username || '',
-        ownerId: item.ownerId || item.owner_id || '',
-        productType: item.productType,
-        sidecarMedia: sidecarMedia,
-      };
-    });
-
-    return {
-      items: mappedItems,
-      datasetId: run.defaultDatasetId,
-      actorRunId: run.id,
-    };
-  } catch (error: any) {
-    logger.error(`[Apify] Error running instagram scraper after retries: ${error.message}`);
+          ...
+    */
     throw error;
   }
 };
@@ -270,77 +323,37 @@ export interface ApifyProfileInfo {
   verified?: boolean;
 }
 
-// Actor: coderx/instagram-profile-scraper-bio-posts
-// ID: PP60E1JIfagMaQxIP
-export const getProfileInfo = async (username: string): Promise<ApifyProfileInfo | null> => {
-  interface RawApifyProfile {
-    username: string;
-    fullName?: string;
-    full_name?: string;
-    biography?: string;
-    profilePicUrl?: string;
-    profile_pic_url?: string;
-    hdProfilePicUrl?: string;
-    hd_profile_pic_url_info?: { url: string };
-    followersCount?: number;
-    followers_count?: number;
-    followsCount?: number;
-    following_count?: number;
-    postsCount?: number;
-    media_count?: number;
-    externalUrl?: string;
-    external_url?: string;
-    isBusinessAccount?: boolean;
-    is_business_account?: boolean;
-    verified?: boolean;
-    is_verified?: boolean;
-  }
-
+// Actor: coderx/instagram-profile-scraper-bio-posts (Legacy) -> Now using Universal
+export const getProfileInfo = async (
+  username: string,
+  onStatus?: (message: string) => Promise<void>,
+): Promise<ApifyProfileInfo | null> => {
   try {
+    // We fetch a single post (limit 1) just to get the profile info item
+    const { profile } = await runUniversalInstagramScraper(username, 1, onStatus);
+    return mapNauProfileToApifyProfile(profile);
+  } catch (error: any) {
+    logger.error(`[Apify] Error fetching profile via universal: ${error.message}`);
+
+    // Fallback? Original implementation below
+    /*
     const profile = await withRetry(
       async () => {
         const run = await client.actor(config.apify.instagramProfileActorId).call(
-          {
-            usernames: [username],
-          },
-          { waitSecs: 180 }, // Profiles are faster
-        );
-
-        if (run.status !== 'SUCCEEDED') {
-          throw new Error(`Apify profile actor status: ${run.status}`);
-        }
-
-        const { items } = await client.dataset(run.defaultDatasetId).listItems();
-        if (items.length === 0) return null;
-        return items[0] as unknown as RawApifyProfile;
-      },
-      { attempts: 3, delay: 5000, factor: 2 },
-    );
-
-    if (!profile) {
-      logger.warn(`[Apify] No profile found for ${username}`);
-      return null;
-    }
-
-    const item = profile;
-
-    return {
-      username: item.username,
-      fullName: item.fullName || item.full_name,
-      biography: item.biography,
-      profilePicUrl: (item.profilePicUrl || item.profile_pic_url) as string,
-      profilePicUrlHD: item.hdProfilePicUrl || item.hd_profile_pic_url_info?.url,
-      followersCount: item.followersCount || item.followers_count,
-      followsCount: item.followsCount || item.following_count,
-      postsCount: item.postsCount || item.media_count,
-      externalUrl: item.externalUrl || item.external_url,
-      isBusinessAccount: item.isBusinessAccount || item.is_business_account,
-      verified: item.verified || item.is_verified,
-    };
-  } catch (error: any) {
-    logger.error(
-      `[Apify] Error fetching profile info for ${username} after retries: ${error.message}`,
-    );
+          { usernames: [username] },
+          ...
+    */
     return null;
+  }
+};
+
+export const abortActorRun = async (runId: string) => {
+  logger.info(`[Apify] Aborting actor run: ${runId}`);
+  try {
+    await client.run(runId).abort();
+    return true;
+  } catch (error: any) {
+    logger.error(`[Apify] Error aborting run ${runId}: ${error.message}`);
+    return false;
   }
 };

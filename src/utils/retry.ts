@@ -16,6 +16,11 @@ export async function withRetry<T>(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       lastError = error;
+      // Immediate stop if flagged
+      if (error.noRetry) {
+        throw error;
+      }
+
       console.warn(
         `[Retry] Attempt ${i + 1} failed: ${error.message}. Retrying in ${currentDelay}ms...`,
       );
