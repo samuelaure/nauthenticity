@@ -70,16 +70,41 @@ export const ingestProfile = async (
     items = cachedRun.rawData as any[];
     runId = cachedRun.id;
   } else {
-    const scrapeResult = await runInstagramScraper(username, maxPosts);
+    if (onProgress) await onProgress(5, { step: `Starting Apify actor for ${username}...` });
+    const scrapeResult = await runInstagramScraper(username, maxPosts, async (status) => {
+      // If we see the Run ID reported, we track it as 'pending' in the DB
+      if (status.startsWith('Run ID: ')) {
+        const id = status.replace('Run ID: ', '');
+        try {
+          await prisma.scrapingRun.upsert({
+            where: { actorRunId: id },
+            update: { username },
+            create: {
+              username,
+              actorRunId: id,
+              status: 'pending'
+            }
+          });
+        } catch (dbErr) {
+          logger.warn(`[Ingester] Could not track pending Run ID ${id}: ${dbErr}`);
+        }
+      }
+      if (onProgress) await onProgress(5, { step: status });
+    });
     items = scrapeResult.items;
 
-    // Create internal run record
-    const run = await prisma.scrapingRun.create({
-      data: {
+    // Finalize the run after finished
+    const run = await prisma.scrapingRun.upsert({
+      where: { actorRunId: scrapeResult.actorRunId },
+      update: {
+        datasetId: scrapeResult.datasetId,
+        rawData: items as any,
+        status: 'completed',
+      },
+      create: {
         username,
         actorRunId: scrapeResult.actorRunId,
         datasetId: scrapeResult.datasetId,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rawData: items as any,
         status: 'completed',
       },
@@ -256,6 +281,7 @@ export const ingestProfile = async (
             {
               postId: post.id,
               mediaId: mediaInDb.id,
+              runId: runId, // Track which run this belongs to
               url: media.url,
               type: media.type,
               username: postUsername, // Ensure worker knows which folder to use

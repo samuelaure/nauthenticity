@@ -1,5 +1,8 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../../db/prisma';
+import { downloadQueue } from '../../queues/download.queue';
+import { computeQueue } from '../../queues/compute.queue';
+import { ingestionQueue } from '../../queues/ingestion.queue';
 
 export const contentController = async (fastify: FastifyInstance) => {
   fastify.get('/accounts', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -230,6 +233,25 @@ export const contentController = async (fastify: FastifyInstance) => {
         const videoPosts = posts.filter((p) => p.media.some((m) => m.type === 'video'));
         const videoPostsWithTranscript = videoPosts.filter((p) => p.transcripts.length > 0);
 
+        // Fetch active jobs from queues to see what's currently happening
+        const [activeIngestion, activeDownloads, activeCompute] = await Promise.all([
+          ingestionQueue.getJobs(['active']),
+          downloadQueue.getJobs(['active']),
+          computeQueue.getJobs(['active']),
+        ]);
+
+        const activeJobs = [
+          ...activeIngestion.filter((j) => j.data.username === username),
+          ...activeDownloads.filter((j) => j.data.username === username),
+          ...activeCompute.filter((j) => j.data.username === username),
+        ].map((j) => ({
+          id: j.id,
+          name: j.name,
+          progress: j.progress,
+          data: j.data,
+          timestamp: j.timestamp,
+        }));
+
         return {
           summary: {
             totalPosts,
@@ -245,6 +267,7 @@ export const contentController = async (fastify: FastifyInstance) => {
                 : 0,
             totalTranscripts,
           },
+          activeJobs,
           posts: posts.map((p) => ({
             id: p.id,
             instagramId: p.instagramId,

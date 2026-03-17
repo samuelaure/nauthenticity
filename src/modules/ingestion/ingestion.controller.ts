@@ -1,5 +1,9 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { ingestionQueue } from '../../queues/ingestion.queue';
+import { downloadQueue } from '../../queues/download.queue';
+import { computeQueue } from '../../queues/compute.queue';
+import { abortActorRun } from '../../services/apify.service';
+import { prisma } from '../../db/prisma';
 import { logger } from '../../utils/logger';
 
 export const ingestionController = async (fastify: FastifyInstance) => {
@@ -50,6 +54,70 @@ export const ingestionController = async (fastify: FastifyInstance) => {
         return reply.status(500).send({ error: 'Failed to queue ingestion job' });
       }
     },
+  );
+
+  fastify.post(
+    '/abort',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { username } = request.body as { username: string };
+
+      if (!username) {
+        return reply.status(400).send({ error: 'Username is required' });
+      }
+
+      logger.info(`[IngestionController] Aborting all jobs for ${username}`);
+
+      try {
+        // 1. Kill Ingestion Jobs
+        const ingJobs = await ingestionQueue.getJobs(['active', 'waiting', 'delayed']);
+        for (const job of ingJobs) {
+          if (job.data.username === username) {
+            await job.remove();
+            logger.info(`[IngestionController] Removed ingestion job ${job.id}`);
+          }
+        }
+
+        // 2. Kill Download Jobs
+        const dlJobs = await downloadQueue.getJobs(['active', 'waiting', 'delayed']);
+        for (const job of dlJobs) {
+          if (job.data.username === username) {
+            await job.remove();
+          }
+        }
+
+        // 3. Kill Compute Jobs
+        const compJobs = await computeQueue.getJobs(['active', 'waiting', 'delayed']);
+        for (const job of compJobs) {
+          if (job.data.username === username) {
+            await job.remove();
+          }
+        }
+
+        // 4. Abort Apify Actor Run
+        // We look for the most recent run that hasn't finished yet or was just started
+        const activeRun = await prisma.scrapingRun.findFirst({
+          where: { username, status: 'pending' },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        if (activeRun && activeRun.actorRunId) {
+          await abortActorRun(activeRun.actorRunId);
+          await prisma.scrapingRun.update({
+            where: { id: activeRun.id },
+            data: { status: 'failed' }
+          });
+        } else {
+          // Alternative: check progress data if runId was reported
+          // We don't have a direct way to get the runId from a running worker easily without shared state
+          // but if we just added it to onProgress, the dashboard might have it.
+        }
+
+        return reply.send({ status: 'aborted', message: `All jobs for ${username} have been requested to stop.` });
+      } catch (error) {
+        logger.error(`[IngestionController] Error during abort for ${username}: ${error}`);
+        return reply.status(500).send({ error: 'Failed to abort jobs' });
+      }
+    }
   );
 
   fastify.get('/ingest/status/:jobId', async (request: FastifyRequest, reply: FastifyReply) => {

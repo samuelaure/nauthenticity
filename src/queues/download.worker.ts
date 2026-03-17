@@ -12,8 +12,9 @@ import { computeQueue } from './compute.queue';
 interface ProcessMediaData {
   postId: string;
   mediaId: string;
+  runId?: string; // Optional for legacy or direct downloads
   url: string;
-  type: 'video' | 'image';
+  type: 'image' | 'video';
   username: string;
 }
 
@@ -47,7 +48,7 @@ export const downloadWorker = new Worker(
   async (job: Job<any>) => {
     return logContextStorage.run({ jobId: job.id, ...job.data }, async () => {
       if (job.name === 'process-media') {
-        const { postId, mediaId, url, type, username } = job.data as ProcessMediaData;
+        const { postId, mediaId, runId, url, type, username } = job.data as ProcessMediaData;
         logger.info(`[DownloadWorker] Downloading Media (${type}) for ${username}`);
 
         const userDir = path.join(config.paths.storage, username, 'posts');
@@ -114,23 +115,45 @@ export const downloadWorker = new Worker(
             data: { storageUrl: publicUrl },
           });
 
-          // 4. Handoff to Compute Queue for both Videos (optimization/transcription) and Images (thumbnails)
-          if (type === 'video') {
-            logger.info(`[DownloadWorker] Video downloaded. Enqueueing compute job.`);
-            await computeQueue.add('compute-video', {
-              postId,
-              mediaId,
-              type,
-              username,
+          // 4. Check if we should trigger computation for the whole run
+          // We only trigger when EVERY media item in this run has a local storageUrl
+          if (runId) {
+            const pendingCount = await prisma.media.count({
+              where: {
+                post: { runId: runId },
+                storageUrl: { not: { startsWith: '/content/' } },
+              },
             });
-          } else {
-            logger.info(`[DownloadWorker] Image downloaded. Enqueueing compute job for thumbnail.`);
-            await computeQueue.add('compute-image', {
-              postId,
-              mediaId,
-              type,
-              username,
-            });
+
+            if (pendingCount === 0) {
+              logger.info(`[DownloadWorker] Run ${runId} fully downloaded. Triggering computation for all media.`);
+              
+              // Find all media items for this run that need processing
+              const runMedia = await prisma.media.findMany({
+                where: { post: { runId: runId } },
+                include: { post: true }
+              });
+
+              for (const m of runMedia) {
+                if (m.type === 'video') {
+                  await computeQueue.add('compute-video', {
+                    postId: m.postId,
+                    mediaId: m.id,
+                    type: m.type,
+                    username: m.post.username,
+                  });
+                } else {
+                  await computeQueue.add('compute-image', {
+                    postId: m.postId,
+                    mediaId: m.id,
+                    type: m.type,
+                    username: m.post.username,
+                  });
+                }
+              }
+            } else {
+              logger.info(`[DownloadWorker] Run ${runId} has ${pendingCount} downloads remaining before computation starts.`);
+            }
           }
 
           logger.info(`[DownloadWorker] Download complete: ${publicUrl}`);
