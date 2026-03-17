@@ -165,10 +165,22 @@ export interface AccountProgress {
     transcriptPct: number;
     totalTranscripts: number;
   };
+  activeJobs: Array<{
+    id: string;
+    name: string;
+    progress: number;
+    data: any;
+    timestamp: number;
+  }>;
   posts: PostProgress[];
 }
 
 export const getAccountProgress = async (username: string) => {
   const { data } = await api.get<AccountProgress>(`/accounts/${username}/progress`);
+  return data;
+};
+
+export const abortIngestion = async (username: string) => {
+  const { data } = await api.post('/abort', { username });
   return data;
 };

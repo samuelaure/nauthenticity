@@ -1,12 +1,135 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import {
   getAccountProgress,
   getAccounts,
+  abortIngestion,
   type AccountProgress,
   type PostProgress,
 } from '../lib/api';
 import { formatDistanceToNow, format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Download, Mic } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Download, Mic, Activity, Loader2, StopCircle } from 'lucide-react';
+
+// ─── Active Jobs ─────────────────────────────────────────────────────────────
+
+const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], username: string }) => {
+  const queryClient = useQueryClient();
+  const abortMutation = useMutation({
+    mutationFn: () => abortIngestion(username),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['progress', username] });
+    }
+  });
+
+  if (!jobs || jobs.length === 0) return null;
+
+  const handleAbort = () => {
+    if (window.confirm('Are you sure you want to ABORT this ingestion and stop the Apify actor?')) {
+      abortMutation.mutate();
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: 'rgba(239, 68, 68, 0.05)',
+        border: '1px solid rgba(239, 68, 68, 0.2)',
+        borderRadius: 10,
+        padding: '1.25rem',
+        marginBottom: '1.5rem',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '1rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
+          <Activity size={18} className="spin" />
+          <h3 style={{ margin: 0, fontSize: '1rem' }}>Active Tasks</h3>
+        </div>
+
+        <button
+          onClick={handleAbort}
+          disabled={abortMutation.isPending}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            background: '#ef4444',
+            color: 'white',
+            border: 'none',
+            padding: '0.4rem 0.75rem',
+            borderRadius: 6,
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            opacity: abortMutation.isPending ? 0.6 : 1,
+          }}
+        >
+          {abortMutation.isPending ? <Loader2 size={14} className="spin" /> : <StopCircle size={14} />}
+          Abort All Tasks
+        </button>
+      </div>
+
+      {jobs.map((job) => {
+        const isIngestion = job.name === 'start-ingestion';
+        const isDownload = job.name === 'process-media';
+        const isCompute = job.name === 'compute-video' || job.name === 'compute-image';
+
+        let label = 'Processing...';
+        if (isIngestion) label = `Scraping & Ingesting: ${job.data?.step || 'Waiting for actor...'}`;
+        if (isDownload) label = `Downloading Media: ${job.data?.mediaId?.slice(0, 8) || '...'}`;
+        if (isCompute)
+          label = `Optimizing / Transcribing: ${job.data?.step || (job.data?.mediaId?.slice(0, 8) || '...')}`;
+
+        return (
+          <div key={job.id} style={{ marginBottom: '1rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '0.4rem',
+                fontSize: '0.85rem',
+              }}
+            >
+              <span style={{ fontWeight: 600 }}>{label}</span>
+              <span>
+                {typeof job.progress === 'number' && job.progress > 0 ? (
+                  `${job.progress}%`
+                ) : (
+                  <Loader2 size={14} className="spin" />
+                )}
+              </span>
+            </div>
+            {typeof job.progress === 'number' && job.progress > 0 && (
+              <div
+                style={{
+                  height: 6,
+                  background: 'rgba(255,255,255,0.1)',
+                  borderRadius: 99,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${job.progress}%`,
+                    background: '#3b82f6',
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 // ─── Progress Bar ────────────────────────────────────────────────────────────
 
@@ -148,14 +271,24 @@ const PostRow = ({ post }: { post: PostProgress }) => {
 
 export const ProgressView = () => {
   const { data: accounts } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
+  const location = useLocation();
   const [selected, setSelected] = React.useState<string | null>(null);
 
-  // Auto-select first account
+  // Parse username from URL: /progress?username=karenexplora
   React.useEffect(() => {
-    if (accounts && accounts.length > 0 && !selected) {
+    const params = new URLSearchParams(location.search);
+    const userParam = params.get('username');
+    if (userParam && userParam !== selected) {
+      setSelected(userParam);
+    }
+  }, [location.search]);
+
+  // Fallback: Auto-select first account if none in URL
+  React.useEffect(() => {
+    if (accounts && accounts.length > 0 && !selected && !new URLSearchParams(location.search).get('username')) {
       setSelected(accounts[0].username);
     }
-  }, [accounts, selected]);
+  }, [accounts, selected, location.search]);
 
   const {
     data: progress,
@@ -208,6 +341,9 @@ export const ProgressView = () => {
         <>
           {/* Summary cards */}
           <SummaryCards summary={progress.summary} />
+
+          {/* Active Jobs */}
+          <ActiveJobs jobs={progress.activeJobs} username={selected!} />
 
           {/* Progress bars */}
           <div

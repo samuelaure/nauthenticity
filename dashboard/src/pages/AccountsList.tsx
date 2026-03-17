@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { getAccounts, ingestAccount, getMediaUrl, API_URL } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Image as ImageIcon } from 'lucide-react';
@@ -7,7 +7,6 @@ import { useState } from 'react';
 
 export const AccountsList = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const {
     data: accounts,
     isLoading,
@@ -19,11 +18,10 @@ export const AccountsList = () => {
 
   const ingestMutation = useMutation({
     mutationFn: ingestAccount,
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       setNewUsername('');
-      // Invalidate to refresh (though might take time to appear)
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      alert('Ingestion started! Check back in a few minutes.');
+      // Redirect to progress view for this account
+      navigate(`/progress?username=${variables.username}`);
     },
   });
 
