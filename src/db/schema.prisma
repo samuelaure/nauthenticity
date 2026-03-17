@@ -51,6 +51,7 @@ model ScrapingRun {
   datasetId   String?
   rawData     Json?    // Optional: store full JSON result for 24h fallback
   status      String   @default("completed") // "pending", "completed", "failed"
+  phase       String   @default("finished")  // "scraping", "downloading", "optimizing", "visualizing", "profiling", "transcribing", "finished"
   
   posts       Post[]
   
