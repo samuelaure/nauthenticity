@@ -82,7 +82,8 @@ export const ingestProfile = async (
             create: {
               username,
               actorRunId: id,
-              status: 'pending'
+              status: 'pending',
+              phase: 'scraping'
             }
           });
         } catch (dbErr) {
@@ -100,6 +101,7 @@ export const ingestProfile = async (
         datasetId: scrapeResult.datasetId,
         rawData: items as any,
         status: 'completed',
+        phase: 'downloading', // Transition to downloading
       },
       create: {
         username,
@@ -107,6 +109,7 @@ export const ingestProfile = async (
         datasetId: scrapeResult.datasetId,
         rawData: items as any,
         status: 'completed',
+        phase: 'downloading',
       },
     });
     runId = run.id;

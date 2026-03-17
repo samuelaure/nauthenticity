@@ -115,8 +115,7 @@ export const downloadWorker = new Worker(
             data: { storageUrl: publicUrl },
           });
 
-          // 4. Check if we should trigger computation for the whole run
-          // We only trigger when EVERY media item in this run has a local storageUrl
+          // 4. Check if we should trigger next phase (Optimizing)
           if (runId) {
             const pendingCount = await prisma.media.count({
               where: {
@@ -126,33 +125,17 @@ export const downloadWorker = new Worker(
             });
 
             if (pendingCount === 0) {
-              logger.info(`[DownloadWorker] Run ${runId} fully downloaded. Triggering computation for all media.`);
+              logger.info(`[DownloadWorker] Run ${runId} fully downloaded. Transitioning to OPTIMIZING.`);
               
-              // Find all media items for this run that need processing
-              const runMedia = await prisma.media.findMany({
-                where: { post: { runId: runId } },
-                include: { post: true }
+              await prisma.scrapingRun.update({
+                where: { id: runId },
+                data: { phase: 'optimizing' },
               });
 
-              for (const m of runMedia) {
-                if (m.type === 'video') {
-                  await computeQueue.add('compute-video', {
-                    postId: m.postId,
-                    mediaId: m.id,
-                    type: m.type,
-                    username: m.post.username,
-                  });
-                } else {
-                  await computeQueue.add('compute-image', {
-                    postId: m.postId,
-                    mediaId: m.id,
-                    type: m.type,
-                    username: m.post.username,
-                  });
-                }
-              }
+              // Trigger Batch Optimization for the entire run
+              await computeQueue.add('optimize-batch', { runId, username });
             } else {
-              logger.info(`[DownloadWorker] Run ${runId} has ${pendingCount} downloads remaining before computation starts.`);
+              logger.info(`[DownloadWorker] Run ${runId} has ${pendingCount} downloads remaining.`);
             }
           }
 

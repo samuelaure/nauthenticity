@@ -7,6 +7,8 @@ import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import { transcribeAudio } from '../services/transcription.service';
 import { logContextStorage } from '../utils/context';
+import { computeQueue } from './compute.queue';
+import { downloadQueue } from './download.queue';
 
 interface ComputeMediaData {
   postId: string;
@@ -34,160 +36,172 @@ const atomicMove = (oldPath: string, newPath: string) => {
   }
 };
 
+const optimizeMedia = async (mediaId: string, filePath: string) => {
+  const media = await prisma.media.findUnique({ where: { id: mediaId } });
+  if (!media || media.type !== 'video') return;
+
+  const optimizedTempFilePath = path.join(config.paths.temp, `${mediaId}_optimized.mp4`);
+  ensureDir(config.paths.temp);
+
+  try {
+    await new Promise((resolve, reject) => {
+      ffmpeg(filePath)
+        .outputOptions(['-c:v libx264', '-crf 28', '-vf scale=-2:720', '-c:a aac', '-b:a 128k'])
+        .save(optimizedTempFilePath)
+        .on('end', resolve)
+        .on('error', reject);
+    });
+    atomicMove(optimizedTempFilePath, filePath);
+  } finally {
+    if (fs.existsSync(optimizedTempFilePath)) fs.unlinkSync(optimizedTempFilePath);
+  }
+};
+
+const generateThumbnail = async (
+  mediaId: string,
+  filePath: string,
+  userDir: string,
+  username: string,
+  type: string,
+) => {
+  const thumbFilename = `${mediaId}_thumb.jpg`;
+  const thumbPath = path.join(userDir, thumbFilename);
+  const thumbPublicUrl = `/content/${username}/posts/${thumbFilename}`;
+
+  await new Promise((resolve, reject) => {
+    const proc = ffmpeg(filePath);
+    if (type === 'video') {
+      proc
+        .screenshots({ timestamps: [1], filename: thumbFilename, folder: userDir, size: '640x?' })
+        .on('end', resolve)
+        .on('error', reject);
+    } else {
+      proc
+        .size('640x?')
+        .on('end', resolve)
+        .on('error', reject)
+        .save(thumbPath);
+    }
+  });
+
+  await prisma.media.update({ where: { id: mediaId }, data: { thumbnailUrl: thumbPublicUrl } });
+};
+
+const transcribeVideo = async (mediaId: string, postId: string, filePath: string) => {
+  const audioPath = path.join(config.paths.temp, `${mediaId}.mp3`);
+  ensureDir(config.paths.temp);
+
+  try {
+    await new Promise((resolve, reject) => {
+      ffmpeg(filePath).toFormat('mp3').on('end', resolve).on('error', reject).save(audioPath);
+    });
+    const transcription = await transcribeAudio(audioPath);
+    await prisma.transcript.upsert({
+      where: { mediaId },
+      update: { text: transcription.text, json: transcription as any },
+      create: { postId, mediaId, text: transcription.text, json: transcription as any },
+    });
+  } finally {
+    if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+  }
+};
+
 export const computeWorker = new Worker(
   'compute-queue',
   async (job: Job<any>) => {
     return logContextStorage.run({ jobId: job.id, ...job.data }, async () => {
-      const { postId, mediaId, type, username } = job.data as ComputeMediaData;
-      
-      const media = await prisma.media.findUnique({ where: { id: mediaId } });
-      if (!media) throw new Error(`[ComputeWorker] Media ${mediaId} not found in DB`);
-
-      // storageUrl is e.g. "/content/violeta_homeschool/posts/abc.mp4"
-      // we need to map it to local filesystem path
-      if (!media.storageUrl || !media.storageUrl.startsWith('/content/')) {
-        const urlStr = media.storageUrl || 'null';
-        throw new Error(`[ComputeWorker] Media ${mediaId} not yet downloaded. Local path missing (Current: ${urlStr}). Postponing.`);
+      if (process.env.PAUSE_COMPUTE === 'true') {
+        throw new Error('Compute is paused');
       }
 
-      const relativePath = media.storageUrl.replace('/content/', '');
-      const filePath = path.join(config.paths.storage, relativePath);
-      
-      const userDir = path.join(config.paths.storage, username, 'posts');
-      const thumbFilename = `${mediaId}_thumb.jpg`;
-      const thumbPath = path.join(userDir, thumbFilename);
-      const thumbPublicUrl = `/content/${username}/posts/${thumbFilename}`;
-      const publicUrl = media.storageUrl;
+      if (job.name === 'optimize-batch') {
+        const { runId, username } = job.data as { runId: string; username: string };
+        logger.info(`[ComputeWorker] Phase: Optimizing Run ${runId}`);
+        const mediaItems = await prisma.media.findMany({ where: { post: { runId } } });
 
-      if (job.name === 'compute-video') {
-        const totalSteps = 4;
-        await job.updateProgress({ progress: 10, step: '1/4: Checking existing...', mediaId, postId });
-        logger.info(`[ComputeWorker] Computing Video: ${mediaId} (${username})`);
+        for (let i = 0; i < mediaItems.length; i++) {
+          const m = mediaItems[i];
+          await job.updateProgress({ progress: Math.round((i / mediaItems.length) * 100), step: `Optimizing ${i + 1}/${mediaItems.length}` });
+          if (m.type === 'video' && m.storageUrl.startsWith('/content/')) {
+            const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
+            if (fs.existsSync(filePath)) {
+              logger.info(`[ComputeWorker] Optimizing ${m.id} (${i + 1}/${mediaItems.length})`);
+              await optimizeMedia(m.id, filePath);
+            }
+          }
+        }
+
+        await prisma.scrapingRun.update({ where: { id: runId }, data: { phase: 'visualizing' } });
+        await computeQueue.add('visualize-batch', { runId, username });
+
+      } else if (job.name === 'visualize-batch') {
+        const { runId, username } = job.data as { runId: string; username: string };
+        logger.info(`[ComputeWorker] Phase: Visualizing Run ${runId}`);
+        const mediaItems = await prisma.media.findMany({ where: { post: { runId } } });
+        const userDir = path.join(config.paths.storage, username, 'posts');
+        ensureDir(userDir);
+
+        for (let i = 0; i < mediaItems.length; i++) {
+          const m = mediaItems[i];
+          await job.updateProgress({ progress: Math.round((i / mediaItems.length) * 100), step: `Thumbnails ${i + 1}/${mediaItems.length}` });
+          if (m.storageUrl.startsWith('/content/')) {
+            const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
+            if (fs.existsSync(filePath)) {
+              logger.info(`[ComputeWorker] Thumbnail for ${m.id} (${i+1}/${mediaItems.length})`);
+              await generateThumbnail(m.id, filePath, userDir, username, m.type);
+            }
+          }
+        }
+
+        await prisma.scrapingRun.update({ where: { id: runId }, data: { phase: 'profiling' } });
+        await computeQueue.add('profile-sync-batch', { runId, username });
+
+      } else if (job.name === 'profile-sync-batch') {
+        const { runId, username: contextUsername } = job.data as { runId: string; username: string };
+        logger.info(`[ComputeWorker] Phase: Profiling Run ${runId}`);
         
-        // Check if we even need to work
-        const existingTranscript = await prisma.transcript.findUnique({ where: { mediaId } });
-        const hasThumbnail = !!media.thumbnailUrl && fs.existsSync(thumbPath);
-
-        if (existingTranscript && hasThumbnail) {
-           logger.info(`[ComputeWorker] Video ${mediaId} already has transcript and thumbnail. Skipping.`);
-           return;
+        const account = await prisma.account.findUnique({ where: { username: contextUsername } });
+        if (account?.profileImageUrl) {
+           await downloadQueue.add('process-profile-image', { username: contextUsername, url: account.profileImageUrl, contextUsername });
         }
 
-        ensureDir(config.paths.temp);
-
-        const audioPath = path.join(config.paths.temp, `${mediaId}.mp3`);
-        const optimizedTempFilePath = path.join(config.paths.temp, `${mediaId}_optimized.mp4`);
-
-        try {
-          if (!fs.existsSync(filePath)) {
-            throw new Error(`[ComputeWorker] File not found at ${filePath}`);
-          }
-
-          // 1. Extract Audio & Transcribe (Only if missing)
-          if (!existingTranscript) {
-            logger.info(`[ComputeWorker] Extracting audio for ${mediaId}`);
-            await new Promise((resolve, reject) => {
-              ffmpeg(filePath)
-                .toFormat('mp3')
-                .on('end', resolve)
-                .on('error', reject)
-                .save(audioPath);
-            });
-
-            logger.info(`[ComputeWorker] Transcribing ${mediaId}`);
-            const translation = await transcribeAudio(audioPath);
-
-            const jsonPayload = translation as any;
-            await prisma.transcript.upsert({
-              where: { mediaId: mediaId },
-              update: { text: translation.text, json: jsonPayload },
-              create: { postId, mediaId, text: translation.text, json: jsonPayload },
-            });
-            await job.updateProgress({ progress: 40, step: '2/4: Transcription finished', mediaId, postId });
-          } else {
-            logger.info(`[ComputeWorker] Transcript already exists for ${mediaId}, skipping AI.`);
-          }
-
-          // 2. Generate Thumbnail (Screenshot) (Only if missing)
-          if (!hasThumbnail) {
-            logger.info(`[ComputeWorker] Generating video thumbnail for ${mediaId}`);
-            await new Promise((resolve, reject) => {
-              ffmpeg(filePath)
-                .screenshots({
-                  timestamps: [1], // 1 second in
-                  filename: thumbFilename,
-                  folder: userDir,
-                  size: '640x?',
-                })
-                .on('end', resolve)
-                .on('error', reject);
-            });
-            await job.updateProgress({ progress: 60, step: '3/4: Thumbnail generated', mediaId, postId });
-
-            // 3. Optimize Video (We only optimize when we generate a new thumbnail usually, 
-            // or if we want to ensure all videos are lean. Let's keep it tied to thumbnail generation 
-            // or missing thumb for simplicity of this "fix")
-            logger.info(`[ComputeWorker] Optimizing video for ${mediaId}`);
-            await new Promise((resolve, reject) => {
-              ffmpeg(filePath)
-                .outputOptions([
-                  '-c:v libx264',
-                  '-crf 28',
-                  '-vf scale=-2:720',
-                  '-c:a aac',
-                  '-b:a 128k',
-                ])
-                .save(optimizedTempFilePath)
-                .on('end', resolve)
-                .on('error', reject);
-            });
-            await job.updateProgress({ progress: 90, step: '4/4: Optimization finished', mediaId, postId });
-
-            // Atomic rename overwriting the original file with the optimized version
-            atomicMove(optimizedTempFilePath, filePath);
-
-            // Update DB with thumbnail
-            await prisma.media.update({
-              where: { id: mediaId },
-              data: { thumbnailUrl: thumbPublicUrl },
-            });
-          }
-
-          logger.info(`[ComputeWorker] Video processing complete: ${publicUrl}`);
-        } catch (error) {
-          logger.error(`[ComputeWorker] Failed to compute video ${mediaId}: ${error}`);
-          throw error;
-        } finally {
-          if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
-          if (fs.existsSync(optimizedTempFilePath)) fs.unlinkSync(optimizedTempFilePath);
+        const posts = await prisma.post.findMany({ where: { runId }, select: { collaborators: true } });
+        const collabs = new Set<string>();
+        for (const p of posts) {
+          const cs = p.collaborators as any[];
+          if (Array.isArray(cs)) cs.forEach(c => c.username && c.profilePicUrl && collabs.add(JSON.stringify({ u: c.username, p: c.profilePicUrl })));
         }
-      } else if (job.name === 'compute-image') {
-        logger.info(`[ComputeWorker] Computing Image Thumbnail: ${mediaId} (${username})`);
-        try {
-          if (!fs.existsSync(filePath)) {
-            throw new Error(`[ComputeWorker] Image file not found at ${filePath}`);
-          }
-          await new Promise((resolve, reject) => {
-            ffmpeg(filePath)
-              .size('640x?')
-              .save(thumbPath)
-              .on('end', resolve)
-              .on('error', reject);
-          });
 
-          await prisma.media.update({
-            where: { id: mediaId },
-            data: { thumbnailUrl: thumbPublicUrl },
-          });
-          logger.info(`[ComputeWorker] Image thumbnail complete: ${thumbPublicUrl}`);
-        } catch (error) {
-          logger.error(`[ComputeWorker] Failed to compute image ${mediaId}: ${error}`);
-          throw error;
+        for (const cStr of collabs) {
+          const { u, p } = JSON.parse(cStr);
+          await downloadQueue.add('process-profile-image', { username: u, url: p, contextUsername });
         }
+
+        await prisma.scrapingRun.update({ where: { id: runId }, data: { phase: 'transcribing' } });
+        await computeQueue.add('transcribe-batch', { runId, username: contextUsername });
+
+      } else if (job.name === 'transcribe-batch') {
+        const { runId, username } = job.data as { runId: string; username: string };
+        logger.info(`[ComputeWorker] Phase: Transcribing Run ${runId}`);
+        const mediaItems = await prisma.media.findMany({ where: { post: { runId }, type: 'video' } });
+
+        for (let i = 0; i < mediaItems.length; i++) {
+          const m = mediaItems[i];
+          await job.updateProgress({ progress: Math.round((i / mediaItems.length) * 100), step: `Transcribing ${i + 1}/${mediaItems.length}` });
+          if (m.storageUrl.startsWith('/content/')) {
+            const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
+            if (fs.existsSync(filePath)) {
+              logger.info(`[ComputeWorker] Transcribing ${m.id} (${i+1}/${mediaItems.length})`);
+              await transcribeVideo(m.id, m.postId, filePath);
+            }
+          }
+        }
+
+        await prisma.scrapingRun.update({ where: { id: runId }, data: { phase: 'finished', status: 'completed' } });
       }
     });
   },
-  { connection: config.redis, concurrency: 1 }, // Compute intensive, set concurrency to 1 to prevent resource exhaustion
+  { connection: config.redis, concurrency: 1 }, // Compute intensive, set concurrency to 1
 );
 
 computeWorker.on('failed', (job, err) => {
