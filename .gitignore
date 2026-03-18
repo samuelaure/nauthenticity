@@ -70,4 +70,6 @@ Icon
 .Trashes
 
 # Agent
-.agent/
+.agent/*
+!.agent/PLAN.md
+!.agent/history/
