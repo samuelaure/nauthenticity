@@ -179,7 +179,7 @@ export const runUniversalInstagramScraper = async (
   maxPosts = 10,
   onStatus?: (message: string) => Promise<void>,
   mode: 'FEED' | 'PROFILE' = 'FEED',
-  oldestPostDate?: string
+  oldestPostDate?: string,
 ): Promise<{ profile: NauIGProfile; items: NauIGPost[]; runId: string; datasetId: string }> => {
   logger.info(
     `[Apify] Starting universal scrape (${mode}) for ${username} (limit: ${maxPosts})...`,
@@ -188,7 +188,7 @@ export const runUniversalInstagramScraper = async (
   const { items, run } = await withRetry(
     async () => {
       if (onStatus) await onStatus(`Waiting for Apify actor to start (${mode})...`);
-      
+
       const actorRun = await client.actor(config.apify.instagramUniversalActorId).call(
         {
           mode,
@@ -249,7 +249,7 @@ export const runUniversalProfilesScraper = async (
   const { items, run } = await withRetry(
     async () => {
       if (onStatus) await onStatus(`Waiting for Apify actor to start (PROFILE batch)...`);
-      
+
       const actorRun = await client.actor(config.apify.instagramUniversalActorId).call(
         {
           mode: 'PROFILE',
@@ -326,16 +326,20 @@ export const runInstagramScraper = async (
   username: string,
   maxPosts = 10,
   onStatus?: (message: string) => Promise<void>,
-  oldestPostDate?: string
-): Promise<{ profile: ApifyProfileInfo; items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
+  oldestPostDate?: string,
+): Promise<{
+  profile: ApifyProfileInfo;
+  items: ApifyInstagramPost[];
+  datasetId: string;
+  actorRunId: string;
+}> => {
   try {
-    const { profile: rawProfile, items, runId, datasetId } = await runUniversalInstagramScraper(
-      username,
-      maxPosts,
-      onStatus,
-      'FEED',
-      oldestPostDate
-    );
+    const {
+      profile: rawProfile,
+      items,
+      runId,
+      datasetId,
+    } = await runUniversalInstagramScraper(username, maxPosts, onStatus, 'FEED', oldestPostDate);
 
     const mappedItems = items.map(mapNauPostToApifyPost);
     const mappedProfile = mapNauProfileToApifyProfile(rawProfile);

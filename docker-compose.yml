@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: nauthenticity_postgres
-    restart: "no"
+    restart: 'no'
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -13,32 +13,32 @@ services:
       - nauthenticity_network
       - shared-mesh
     labels:
-      - "traefik.enable=true"
-      - "traefik.tcp.routers.nauthenticity-postgres.rule=HostSNI(`postgres.nauthenticity.localhost`)"
-      - "traefik.tcp.routers.nauthenticity-postgres.entrypoints=postgres"
-      - "traefik.tcp.routers.nauthenticity-postgres.tls=true"
-      - "traefik.tcp.services.nauthenticity-postgres.loadbalancer.server.port=5432"
-      - "traefik.docker.network=shared-mesh"
+      - 'traefik.enable=true'
+      - 'traefik.tcp.routers.nauthenticity-postgres.rule=HostSNI(`postgres.nauthenticity.localhost`)'
+      - 'traefik.tcp.routers.nauthenticity-postgres.entrypoints=postgres'
+      - 'traefik.tcp.routers.nauthenticity-postgres.tls=true'
+      - 'traefik.tcp.services.nauthenticity-postgres.loadbalancer.server.port=5432'
+      - 'traefik.docker.network=shared-mesh'
 
   redis:
     image: redis:7-alpine
     container_name: nauthenticity_redis
-    restart: "no"
+    restart: 'no'
     networks:
       - nauthenticity_network
       - shared-mesh
     labels:
-      - "traefik.enable=true"
-      - "traefik.tcp.routers.nauthenticity-redis.rule=HostSNI(`redis.nauthenticity.localhost`)"
-      - "traefik.tcp.routers.nauthenticity-redis.entrypoints=redis"
-      - "traefik.tcp.routers.nauthenticity-redis.tls=true"
-      - "traefik.tcp.services.nauthenticity-redis.loadbalancer.server.port=6379"
-      - "traefik.docker.network=shared-mesh"
+      - 'traefik.enable=true'
+      - 'traefik.tcp.routers.nauthenticity-redis.rule=HostSNI(`redis.nauthenticity.localhost`)'
+      - 'traefik.tcp.routers.nauthenticity-redis.entrypoints=redis'
+      - 'traefik.tcp.routers.nauthenticity-redis.tls=true'
+      - 'traefik.tcp.services.nauthenticity-redis.loadbalancer.server.port=6379'
+      - 'traefik.docker.network=shared-mesh'
 
   app:
     build: .
     container_name: nauthenticity
-    restart: "no"
+    restart: 'no'
     environment:
       - PORT=${PORT:-3000}
       - NODE_ENV=${NODE_ENV:-development}

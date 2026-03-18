@@ -126,7 +126,11 @@ export const updatePost = async (
   return data;
 };
 
-export const ingestAccount = async (payload: { username: string; limit: number; updateSync?: boolean }) => {
+export const ingestAccount = async (payload: {
+  username: string;
+  limit: number;
+  updateSync?: boolean;
+}) => {
   const { data } = await api.post('/ingest', payload);
   return data;
 };

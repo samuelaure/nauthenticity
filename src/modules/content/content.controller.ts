@@ -197,23 +197,27 @@ export const contentController = async (fastify: FastifyInstance) => {
       const { username } = request.params as { username: string };
       try {
         // Aggregate totals in one query set
-        const [totalPosts, totalMedia, localMedia, totalTranscripts, activeRun] = await Promise.all([
-          prisma.post.count({ where: { username } }),
-          prisma.media.count({ where: { post: { username } } }),
-          prisma.media.count({
-            where: { post: { username }, storageUrl: { startsWith: '/content/' } },
-          }),
-          prisma.transcript.count({ where: { post: { username } } }),
-          prisma.scrapingRun.findFirst({
-            where: { username, status: 'pending' },
-            orderBy: { createdAt: 'desc' },
-          }),
-        ]);
+        const [totalPosts, totalMedia, localMedia, totalTranscripts, activeRun] = await Promise.all(
+          [
+            prisma.post.count({ where: { username } }),
+            prisma.media.count({ where: { post: { username } } }),
+            prisma.media.count({
+              where: { post: { username }, storageUrl: { startsWith: '/content/' } },
+            }),
+            prisma.transcript.count({ where: { post: { username } } }),
+            prisma.scrapingRun.findFirst({
+              where: { username, status: 'pending' },
+              orderBy: { createdAt: 'desc' },
+            }),
+          ],
+        );
 
-        const ongoingRun = activeRun || await prisma.scrapingRun.findFirst({
-          where: { username },
-          orderBy: { createdAt: 'desc' },
-        });
+        const ongoingRun =
+          activeRun ||
+          (await prisma.scrapingRun.findFirst({
+            where: { username },
+            orderBy: { createdAt: 'desc' },
+          }));
 
         // Per-post breakdown (latest 200 posts, ordered newest first)
         const posts = await prisma.post.findMany({
@@ -275,7 +279,10 @@ export const contentController = async (fastify: FastifyInstance) => {
                 ? Math.round((videoPostsWithTranscript.length / videoPosts.length) * 100)
                 : 0,
             totalTranscripts,
-            phase: ongoingRun?.status === 'completed' && ongoingRun?.phase === 'finished' ? 'idle' : ongoingRun?.phase || 'idle',
+            phase:
+              ongoingRun?.status === 'completed' && ongoingRun?.phase === 'finished'
+                ? 'idle'
+                : ongoingRun?.phase || 'idle',
             status: ongoingRun?.status || 'idle',
           },
           activeJobs,

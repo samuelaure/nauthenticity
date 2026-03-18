@@ -13,9 +13,22 @@ import {
   type QueueMetrics,
 } from '../lib/api';
 import { formatDistanceToNow, format } from 'date-fns';
-import { 
-  CheckCircle, XCircle, Clock, Download, Mic, Activity, Loader2, StopCircle, 
-  Pause, Play, Database, HardDrive, Cpu, AlertCircle, Trash2
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Download,
+  Mic,
+  Activity,
+  Loader2,
+  StopCircle,
+  Pause,
+  Play,
+  Database,
+  HardDrive,
+  Cpu,
+  AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import { AddAccountForm } from '../components/AddAccountForm';
 import React from 'react';
@@ -40,46 +53,116 @@ const QueueStatsSection = ({
       queryClient.invalidateQueries({ queryKey: ['queue-status'] });
     },
   });
-  
+
   const stats = [
-    { label: 'Active', value: metrics.counts.active, color: '#3b82f6', icon: <Activity size={14} /> },
-    { label: 'Waiting', value: metrics.counts.waiting, color: '#f59e0b', icon: <Clock size={14} /> },
-    { label: 'Failed', value: metrics.counts.failed, color: '#ef4444', icon: <AlertCircle size={14} /> },
+    {
+      label: 'Active',
+      value: metrics.counts.active,
+      color: '#3b82f6',
+      icon: <Activity size={14} />,
+    },
+    {
+      label: 'Waiting',
+      value: metrics.counts.waiting,
+      color: '#f59e0b',
+      icon: <Clock size={14} />,
+    },
+    {
+      label: 'Failed',
+      value: metrics.counts.failed,
+      color: '#ef4444',
+      icon: <AlertCircle size={14} />,
+    },
   ];
 
-  if (metrics.counts.active === 0 && metrics.counts.waiting === 0 && metrics.counts.failed === 0) return null;
+  if (metrics.counts.active === 0 && metrics.counts.waiting === 0 && metrics.counts.failed === 0)
+    return null;
 
   return (
-    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid var(--border)',
+        borderRadius: 10,
+        padding: '1rem',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          marginBottom: '1rem',
+          color: 'var(--text-secondary)',
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: '0.5rem',
+        }}
+      >
         {icon} <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{title}</span>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-        {stats.map(s => (
-          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
-             <span style={{ color: s.color }}>{s.icon}</span>
-             <span style={{ fontWeight: 600 }}>{s.value}</span>
-             <span style={{ opacity: 0.6 }}>{s.label}</span>
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
+          >
+            <span style={{ color: s.color }}>{s.icon}</span>
+            <span style={{ fontWeight: 600 }}>{s.value}</span>
+            <span style={{ opacity: 0.6 }}>{s.label}</span>
           </div>
         ))}
       </div>
 
       {metrics.failed && metrics.failed.length > 0 && (
         <div style={{ marginTop: '0.5rem' }}>
-          <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', marginBottom: '0.5rem' }}>Recent Failures:</p>
+          <p
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ef4444',
+              marginBottom: '0.5rem',
+            }}
+          >
+            Recent Failures:
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-            {metrics.failed.slice(0, 3).map(job => (
-              <div key={job.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(239, 68, 68, 0.05)', padding: '0.4rem', borderRadius: 4, fontSize: '0.75rem' }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%', opacity: 0.8 }}>
-                   {job.failedReason || 'Unknown error'}
+            {metrics.failed.slice(0, 3).map((job) => (
+              <div
+                key={job.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'rgba(239, 68, 68, 0.05)',
+                  padding: '0.4rem',
+                  borderRadius: 4,
+                  fontSize: '0.75rem',
+                }}
+              >
+                <span
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: '80%',
+                    opacity: 0.8,
+                  }}
+                >
+                  {job.failedReason || 'Unknown error'}
                 </span>
-                <button 
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     deleteMutation.mutate({ id: job.id });
-                   }}
-                   style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: '2px' }}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteMutation.mutate({ id: job.id });
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(255,255,255,0.3)',
+                    cursor: 'pointer',
+                    padding: '2px',
+                  }}
                 >
                   <Trash2 size={12} />
                 </button>
@@ -94,25 +177,31 @@ const QueueStatsSection = ({
 
 // ─── Active Jobs ─────────────────────────────────────────────────────────────
 
-const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], username: string }) => {
+const ActiveJobs = ({
+  jobs,
+  username,
+}: {
+  jobs: AccountProgress['activeJobs'];
+  username: string;
+}) => {
   const queryClient = useQueryClient();
   const abortMutation = useMutation({
     mutationFn: () => abortIngestion(username),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['progress', username] });
-    }
+    },
   });
 
-  const isPaused = jobs.some(j => j.progressData?.step?.includes('PAUSED')) || false;
+  const isPaused = jobs.some((j) => j.progressData?.step?.includes('PAUSED')) || false;
 
   const pauseMutation = useMutation({
     mutationFn: () => pauseIngestion(username),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['progress', username] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['progress', username] }),
   });
 
   const resumeMutation = useMutation({
     mutationFn: () => resumeIngestion(username),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['progress', username] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['progress', username] }),
   });
 
   if (!jobs || jobs.length === 0) return null;
@@ -148,7 +237,7 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
 
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
-            onClick={() => isPaused ? resumeMutation.mutate() : pauseMutation.mutate()}
+            onClick={() => (isPaused ? resumeMutation.mutate() : pauseMutation.mutate())}
             disabled={pauseMutation.isPending || resumeMutation.isPending}
             style={{
               display: 'flex',
@@ -167,7 +256,7 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
             {isPaused ? <Play size={14} /> : <Pause size={14} />}
             {isPaused ? 'Resume' : 'Soft Pause'}
           </button>
-          
+
           <button
             onClick={handleAbort}
             disabled={abortMutation.isPending}
@@ -186,7 +275,11 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
               opacity: abortMutation.isPending ? 0.6 : 1,
             }}
           >
-            {abortMutation.isPending ? <Loader2 size={14} className="spin" /> : <StopCircle size={14} />}
+            {abortMutation.isPending ? (
+              <Loader2 size={14} className="spin" />
+            ) : (
+              <StopCircle size={14} />
+            )}
             Abort All
           </button>
         </div>
@@ -195,32 +288,42 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
       {jobs.map((job) => {
         const isIngestion = job.name === 'start-ingestion';
         const isDownload = job.name === 'process-media';
-        const isCompute = job.name === 'compute-video' || job.name === 'compute-image' || job.name === 'profile-sync-batch' || job.name === 'transcribe-batch' || job.name === 'optimize-batch' || job.name === 'visualize-batch';
+        const isCompute =
+          job.name === 'compute-video' ||
+          job.name === 'compute-image' ||
+          job.name === 'profile-sync-batch' ||
+          job.name === 'transcribe-batch' ||
+          job.name === 'optimize-batch' ||
+          job.name === 'visualize-batch';
 
         let label = 'Processing...';
-        if (isIngestion) label = `Scraping & Ingesting: ${job.progressData?.step || 'Waiting for actor...'}`;
+        if (isIngestion)
+          label = `Scraping & Ingesting: ${job.progressData?.step || 'Waiting for actor...'}`;
         if (isDownload) label = `Downloading Media: ${job.data?.mediaId?.slice(0, 8) || '...'}`;
         if (isCompute) label = `${job.progressData?.step || 'Computing...'}`;
 
         return (
           <div key={job.id} style={{ marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 600 }}>{label}</span>
-                    <span>
-                    {typeof job.progress === 'number' && job.progress > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <span style={{ fontWeight: 600 }}>{label}</span>
+                <span>
+                  {typeof job.progress === 'number' && job.progress > 0 ? (
                     `${job.progress}%`
-                    ) : (
+                  ) : (
                     <Loader2 size={14} className="spin" />
-                    )}
+                  )}
                 </span>
-                </div>
-                {job.progressData?.currentItem && (
-                  <span style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '2px' }}>
-                    @{job.progressData.currentItem.username} · {job.progressData.currentItem.postedAt} · {job.progressData.currentItem.type}
-                  </span>
-                )}
               </div>
+              {job.progressData?.currentItem && (
+                <span style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '2px' }}>
+                  @{job.progressData.currentItem.username} · {job.progressData.currentItem.postedAt}{' '}
+                  · {job.progressData.currentItem.type}
+                </span>
+              )}
+            </div>
             {typeof job.progress === 'number' && job.progress > 0 && (
               <div
                 style={{
@@ -228,7 +331,7 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
                   background: 'rgba(255,255,255,0.1)',
                   borderRadius: 99,
                   overflow: 'hidden',
-                  marginTop: '0.4rem'
+                  marginTop: '0.4rem',
                 }}
               >
                 <div
@@ -409,7 +512,12 @@ export const ProgressView = () => {
 
   // Fallback: Auto-select first account if none in URL
   React.useEffect(() => {
-    if (accounts && accounts.length > 0 && !selected && !new URLSearchParams(location.search).get('username')) {
+    if (
+      accounts &&
+      accounts.length > 0 &&
+      !selected &&
+      !new URLSearchParams(location.search).get('username')
+    ) {
       setSelected(accounts[0].username);
     }
   }, [accounts, selected, location.search]);
@@ -451,7 +559,7 @@ export const ProgressView = () => {
               padding: '0 1rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem'
+              gap: '0.5rem',
             }}
           >
             <Activity size={16} />
@@ -470,7 +578,7 @@ export const ProgressView = () => {
               borderRadius: 6,
               cursor: 'pointer',
               fontSize: '0.9rem',
-              height: '34px'
+              height: '34px',
             }}
           >
             {(accounts ?? []).map((a) => (
@@ -483,10 +591,32 @@ export const ProgressView = () => {
       </div>
 
       {showQueues && queueStatus && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-           <QueueStatsSection title="Ingestion" metrics={queueStatus.ingestion} icon={<Database size={18} />} queueName="ingestion" />
-           <QueueStatsSection title="Downloads" metrics={queueStatus.download} icon={<HardDrive size={18} />} queueName="download" />
-           <QueueStatsSection title="Compute" metrics={queueStatus.compute} icon={<Cpu size={18} />} queueName="compute" />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '1rem',
+            marginBottom: '2rem',
+          }}
+        >
+          <QueueStatsSection
+            title="Ingestion"
+            metrics={queueStatus.ingestion}
+            icon={<Database size={18} />}
+            queueName="ingestion"
+          />
+          <QueueStatsSection
+            title="Downloads"
+            metrics={queueStatus.download}
+            icon={<HardDrive size={18} />}
+            queueName="download"
+          />
+          <QueueStatsSection
+            title="Compute"
+            metrics={queueStatus.compute}
+            icon={<Cpu size={18} />}
+            queueName="compute"
+          />
         </div>
       )}
 
@@ -499,38 +629,57 @@ export const ProgressView = () => {
 
           {/* Active Jobs or Idle State */}
           {isIdle ? (
-            <div style={{ 
-              background: 'var(--bg-card)', 
-              border: '1px solid var(--border)', 
-              borderRadius: 10, 
-              padding: '2rem', 
-              textAlign: 'center',
-              marginBottom: '1.5rem',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '1rem'
-            }}>
+            <div
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '2rem',
+                textAlign: 'center',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '1rem',
+              }}
+            >
               <div style={{ color: 'var(--text-secondary)' }}>
-                <CheckCircle size={48} style={{ marginBottom: '0.5rem', color: '#10b981', opacity: 0.5 }} />
+                <CheckCircle
+                  size={48}
+                  style={{ marginBottom: '0.5rem', color: '#10b981', opacity: 0.5 }}
+                />
                 <p style={{ margin: 0, fontWeight: 600, color: 'white' }}>No Active Processes</p>
-                <p style={{ margin: 0, fontSize: '0.9rem' }}>Everything is up to date for @{selected}.</p>
+                <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                  Everything is up to date for @{selected}.
+                </p>
               </div>
-              <div style={{ width: '100%', maxWidth: '500px', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
-                <p style={{ fontSize: '0.85rem', marginBottom: '1rem', fontWeight: 600 }}>Start New Sync:</p>
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: '500px',
+                  marginTop: '1rem',
+                  borderTop: '1px solid var(--border)',
+                  paddingTop: '1.5rem',
+                }}
+              >
+                <p style={{ fontSize: '0.85rem', marginBottom: '1rem', fontWeight: 600 }}>
+                  Start New Sync:
+                </p>
                 <AddAccountForm initialUsername={selected!} />
               </div>
             </div>
           ) : (
-            <ActiveJobs 
-              jobs={progress.activeJobs.map(j => ({
+            <ActiveJobs
+              jobs={progress.activeJobs.map((j) => ({
                 ...j,
                 progressData: {
-                   ...j.progressData,
-                   step: progress.summary.isPaused ? '(PAUSED) ' + (j.progressData?.step || '') : j.progressData?.step
-                }
-              }))} 
-              username={selected!} 
+                  ...j.progressData,
+                  step: progress.summary.isPaused
+                    ? '(PAUSED) ' + (j.progressData?.step || '')
+                    : j.progressData?.step,
+                },
+              }))}
+              username={selected!}
             />
           )}
 

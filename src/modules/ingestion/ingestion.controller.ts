@@ -18,7 +18,11 @@ export const ingestionController = async (fastify: FastifyInstance) => {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const { username, limit, updateSync } = request.body as { username: string; limit?: number; updateSync?: boolean };
+      const { username, limit, updateSync } = request.body as {
+        username: string;
+        limit?: number;
+        updateSync?: boolean;
+      };
 
       if (!username) {
         return reply.status(400).send({ error: 'Username is required' });
@@ -57,143 +61,137 @@ export const ingestionController = async (fastify: FastifyInstance) => {
     },
   );
 
-  fastify.post(
-    '/abort',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { username } = request.body as { username: string };
+  fastify.post('/abort', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { username } = request.body as { username: string };
 
-      if (!username) {
-        return reply.status(400).send({ error: 'Username is required' });
+    if (!username) {
+      return reply.status(400).send({ error: 'Username is required' });
+    }
+
+    logger.info(`[IngestionController] Aborting all jobs for ${username}`);
+
+    try {
+      // 1. Kill Ingestion Jobs
+      const ingJobs = await ingestionQueue.getJobs(['active', 'waiting', 'delayed']);
+      for (const job of ingJobs) {
+        if (job.data.username === username) {
+          await job.remove();
+          logger.info(`[IngestionController] Removed ingestion job ${job.id}`);
+        }
       }
 
-      logger.info(`[IngestionController] Aborting all jobs for ${username}`);
-
-      try {
-        // 1. Kill Ingestion Jobs
-        const ingJobs = await ingestionQueue.getJobs(['active', 'waiting', 'delayed']);
-        for (const job of ingJobs) {
-          if (job.data.username === username) {
-            await job.remove();
-            logger.info(`[IngestionController] Removed ingestion job ${job.id}`);
-          }
+      // 2. Kill Download Jobs
+      const dlJobs = await downloadQueue.getJobs(['active', 'waiting', 'delayed']);
+      for (const job of dlJobs) {
+        if (job.data.username === username) {
+          await job.remove();
         }
+      }
 
-        // 2. Kill Download Jobs
-        const dlJobs = await downloadQueue.getJobs(['active', 'waiting', 'delayed']);
-        for (const job of dlJobs) {
-          if (job.data.username === username) {
-            await job.remove();
-          }
+      // 3. Kill Compute Jobs
+      const compJobs = await computeQueue.getJobs(['active', 'waiting', 'delayed']);
+      for (const job of compJobs) {
+        if (job.data.username === username) {
+          await job.remove();
         }
+      }
 
-        // 3. Kill Compute Jobs
-        const compJobs = await computeQueue.getJobs(['active', 'waiting', 'delayed']);
-        for (const job of compJobs) {
-          if (job.data.username === username) {
-            await job.remove();
-          }
-        }
+      // 4. Abort Apify Actor Run
+      // We look for the most recent run that hasn't finished yet or was just started
+      const activeRun = await prisma.scrapingRun.findFirst({
+        where: { username, status: 'pending' },
+        orderBy: { createdAt: 'desc' },
+      });
 
-        // 4. Abort Apify Actor Run
-        // We look for the most recent run that hasn't finished yet or was just started
-        const activeRun = await prisma.scrapingRun.findFirst({
-          where: { username, status: 'pending' },
-          orderBy: { createdAt: 'desc' }
+      if (activeRun && activeRun.actorRunId) {
+        await abortActorRun(activeRun.actorRunId);
+        await prisma.scrapingRun.update({
+          where: { id: activeRun.id },
+          data: { status: 'failed' },
         });
-
-        if (activeRun && activeRun.actorRunId) {
-          await abortActorRun(activeRun.actorRunId);
-          await prisma.scrapingRun.update({
-            where: { id: activeRun.id },
-            data: { status: 'failed' }
-          });
-        } else {
-          // Alternative: check progress data if runId was reported
-          // We don't have a direct way to get the runId from a running worker easily without shared state
-          // but if we just added it to onProgress, the dashboard might have it.
-        }
-
-        return reply.send({ status: 'aborted', message: `All jobs for ${username} have been requested to stop.` });
-      } catch (error) {
-        logger.error(`[IngestionController] Error during abort for ${username}: ${error}`);
-        return reply.status(500).send({ error: 'Failed to abort jobs' });
-      }
-    }
-  );
-
-  fastify.post(
-    '/pause',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { username } = request.body as { username: string };
-      if (!username) return reply.status(400).send({ error: 'Username is required' });
-
-      const run = await prisma.scrapingRun.findFirst({
-        where: { username, status: 'pending' },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      if (!run) return reply.status(404).send({ error: 'No active run for this user' });
-
-      await prisma.scrapingRun.update({
-        where: { id: run.id },
-        data: { isPaused: true },
-      });
-
-      logger.info(`[IngestionController] Paused run ${run.id} for ${username}`);
-      return reply.send({ status: 'paused' });
-    }
-  );
-
-  fastify.post(
-    '/resume',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { username } = request.body as { username: string };
-      if (!username) return reply.status(400).send({ error: 'Username is required' });
-
-      const run = await prisma.scrapingRun.findFirst({
-        where: { username, status: 'pending' },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      if (!run) return reply.status(404).send({ error: 'No active run for this user' });
-
-      await prisma.scrapingRun.update({
-        where: { id: run.id },
-        data: { isPaused: false },
-      });
-
-      // Resume by re-injecting the batch job for the current phase
-      const { phase, id: runId } = run;
-      logger.info(`[IngestionController] Resuming run ${runId} (@${username}) in phase: ${phase}`);
-
-      if (phase === 'downloading') {
-         // Re-enqueue all pending media downloads
-         const pendingMedia = await prisma.media.findMany({
-            where: { post: { runId }, storageUrl: { not: { startsWith: '/content/' } } }
-         });
-         for (const m of pendingMedia) {
-            await downloadQueue.add('process-media', {
-               postId: m.postId,
-               mediaId: m.id,
-               runId,
-               url: m.url,
-               type: m.type,
-               username
-            });
-         }
-      } else if (phase === 'optimizing') {
-         await computeQueue.add('optimize-batch', { runId, username });
-      } else if (phase === 'visualizing') {
-         await computeQueue.add('visualize-batch', { runId, username });
-      } else if (phase === 'profiling') {
-         await computeQueue.add('profile-sync-batch', { runId, username });
-      } else if (phase === 'transcribing') {
-         await computeQueue.add('transcribe-batch', { runId, username });
+      } else {
+        // Alternative: check progress data if runId was reported
+        // We don't have a direct way to get the runId from a running worker easily without shared state
+        // but if we just added it to onProgress, the dashboard might have it.
       }
 
-      return reply.send({ status: 'resumed', phase });
+      return reply.send({
+        status: 'aborted',
+        message: `All jobs for ${username} have been requested to stop.`,
+      });
+    } catch (error) {
+      logger.error(`[IngestionController] Error during abort for ${username}: ${error}`);
+      return reply.status(500).send({ error: 'Failed to abort jobs' });
     }
-  );
+  });
+
+  fastify.post('/pause', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { username } = request.body as { username: string };
+    if (!username) return reply.status(400).send({ error: 'Username is required' });
+
+    const run = await prisma.scrapingRun.findFirst({
+      where: { username, status: 'pending' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!run) return reply.status(404).send({ error: 'No active run for this user' });
+
+    await prisma.scrapingRun.update({
+      where: { id: run.id },
+      data: { isPaused: true },
+    });
+
+    logger.info(`[IngestionController] Paused run ${run.id} for ${username}`);
+    return reply.send({ status: 'paused' });
+  });
+
+  fastify.post('/resume', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { username } = request.body as { username: string };
+    if (!username) return reply.status(400).send({ error: 'Username is required' });
+
+    const run = await prisma.scrapingRun.findFirst({
+      where: { username, status: 'pending' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!run) return reply.status(404).send({ error: 'No active run for this user' });
+
+    await prisma.scrapingRun.update({
+      where: { id: run.id },
+      data: { isPaused: false },
+    });
+
+    // Resume by re-injecting the batch job for the current phase
+    const { phase, id: runId } = run;
+    logger.info(`[IngestionController] Resuming run ${runId} (@${username}) in phase: ${phase}`);
+
+    if (phase === 'downloading') {
+      // Re-enqueue all pending media downloads
+      const pendingMedia = await prisma.media.findMany({
+        where: { post: { runId }, storageUrl: { not: { startsWith: '/content/' } } },
+      });
+      for (const m of pendingMedia) {
+        await downloadQueue.add('process-media', {
+          postId: m.postId,
+          mediaId: m.id,
+          runId,
+          url: m.url,
+          type: m.type,
+          username,
+        });
+      }
+    } else if (phase === 'optimizing') {
+      await computeQueue.add('optimize-batch', { runId, username });
+    } else if (phase === 'visualizing') {
+      await computeQueue.add('visualize-batch', { runId, username });
+    } else if (phase === 'profiling') {
+      await computeQueue.add('profile-sync-batch', { runId, username });
+    } else if (phase === 'transcribing') {
+      await computeQueue.add('transcribe-batch', { runId, username });
+    }
+
+    return reply.send({ status: 'resumed', phase });
+  });
 
   fastify.get('/ingest/status/:jobId', async (request: FastifyRequest, reply: FastifyReply) => {
     const { jobId } = request.params as { jobId: string };

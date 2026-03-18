@@ -28,7 +28,7 @@ export const ingestionWorker = new Worker(
               async (progress, data) => {
                 await job.updateProgress({ progress, ...data });
               },
-              { updateSync }
+              { updateSync },
             ),
             120 * 60 * 1000, // 2 hours window for massive accounts
             `Ingestion for ${username} timed out after 2 hours`,

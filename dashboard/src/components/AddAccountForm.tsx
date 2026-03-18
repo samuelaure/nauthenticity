@@ -54,13 +54,15 @@ export const AddAccountForm = ({ initialUsername = '' }: { initialUsername?: str
         }}
         placeholder="Posts"
       />
-      <button 
-        type="submit" 
-        className="action-btn" 
+      <button
+        type="submit"
+        className="action-btn"
         disabled={ingestMutation.isPending}
         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
       >
-        {ingestMutation.isPending ? 'Ingesting...' : (
+        {ingestMutation.isPending ? (
+          'Ingesting...'
+        ) : (
           <>
             <Plus size={20} />
             <span>Process Account</span>

@@ -227,7 +227,9 @@ export const AccountView = () => {
         </a>
         <button
           className="btn-secondary"
-          onClick={() => ingestMutation.mutate({ username: account.username, limit: 50, updateSync: true })}
+          onClick={() =>
+            ingestMutation.mutate({ username: account.username, limit: 50, updateSync: true })
+          }
           disabled={ingestMutation.isPending}
           style={{
             display: 'flex',
