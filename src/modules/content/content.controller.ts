@@ -7,14 +7,32 @@ import { ingestionQueue } from '../../queues/ingestion.queue';
 export const contentController = async (fastify: FastifyInstance) => {
   fastify.get('/accounts', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const accounts = await prisma.account.findMany({
-        where: {
-          posts: { some: {} },
+      const { page = 1, limit = 50 } = request.query as { page?: number; limit?: number };
+      const skip = (Number(page) - 1) * Number(limit);
+      const take = Number(limit);
+
+      const [accounts, total] = await Promise.all([
+        prisma.account.findMany({
+          where: {
+            posts: { some: {} },
+          },
+          orderBy: { lastScrapedAt: 'desc' },
+          include: { _count: { select: { posts: true } } },
+          skip,
+          take,
+        }),
+        prisma.account.count({ where: { posts: { some: {} } } }),
+      ]);
+
+      return {
+        accounts,
+        pagination: {
+          total,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(total / take),
         },
-        orderBy: { lastScrapedAt: 'desc' },
-        include: { _count: { select: { posts: true } } },
-      });
-      return accounts;
+      };
     } catch (e) {
       request.log.error(e);
       return reply.status(500).send({ error: 'Failed to fetch accounts' });
