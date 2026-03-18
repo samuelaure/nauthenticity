@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../../db/prisma';
+import { config } from '../../config';
 import { downloadQueue } from '../../queues/download.queue';
 import { computeQueue } from '../../queues/compute.queue';
 import { ingestionQueue } from '../../queues/ingestion.queue';
@@ -261,8 +262,8 @@ export const contentController = async (fastify: FastifyInstance) => {
           },
         });
 
-        const videoPosts = posts.filter((p) => p.media.some((m) => m.type === 'video'));
-        const videoPostsWithTranscript = videoPosts.filter((p) => p.transcripts.length > 0);
+        const videoPosts = posts.filter((p: any) => p.media.some((m: any) => m.type === 'video'));
+        const videoPostsWithTranscript = videoPosts.filter((p: any) => p.transcripts.length > 0);
 
         // Fetch active jobs from queues to see what's currently happening
         const [activeIngestion, activeDownloads, activeCompute] = await Promise.all([
@@ -272,10 +273,10 @@ export const contentController = async (fastify: FastifyInstance) => {
         ]);
 
         const activeJobs = [
-          ...activeIngestion.filter((j) => j.data.username === username),
-          ...activeDownloads.filter((j) => j.data.username === username),
-          ...activeCompute.filter((j) => j.data.username === username),
-        ].map((j) => ({
+          ...activeIngestion.filter((j: any) => j.data.username === username),
+          ...activeDownloads.filter((j: any) => j.data.username === username),
+          ...activeCompute.filter((j: any) => j.data.username === username),
+        ].map((j: any) => ({
           id: j.id,
           name: j.name,
           progress: j.progress,
@@ -304,14 +305,14 @@ export const contentController = async (fastify: FastifyInstance) => {
             status: ongoingRun?.status || 'idle',
           },
           activeJobs,
-          posts: posts.map((p) => ({
+          posts: posts.map((p: any) => ({
             id: p.id,
             instagramId: p.instagramId,
             postedAt: p.postedAt,
             caption: p.caption?.slice(0, 80),
             mediaCount: p.media.length,
-            downloaded: p.media.every((m) => m.storageUrl.startsWith('/content/')),
-            hasVideo: p.media.some((m) => m.type === 'video'),
+            downloaded: p.media.every((m: any) => m.storageUrl.startsWith('/content/')),
+            hasVideo: p.media.some((m: any) => m.type === 'video'),
             transcribed: p.transcripts.length > 0,
             transcriptPreview: p.transcripts[0]?.text?.slice(0, 80) ?? null,
           })),
@@ -322,4 +323,68 @@ export const contentController = async (fastify: FastifyInstance) => {
       }
     },
   );
+
+  fastify.post('/search', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { query, username, limit = 10 } = request.body as {
+      query: string;
+      username?: string;
+      limit?: number;
+    };
+
+    if (!query) {
+      return reply.status(400).send({ error: 'Query is required' });
+    }
+
+    try {
+      const { OpenAI } = await import('openai');
+      const openai = new OpenAI({ apiKey: config.openai.apiKey });
+
+      const embeddingResponse = await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: query.replace(/\n/g, ' '),
+        encoding_format: 'float',
+      });
+      const queryVector = embeddingResponse.data[0].embedding;
+
+      // Use raw SQL with PGVector
+      let rawResults: any[];
+      if (username) {
+        rawResults = await prisma.$queryRaw`
+          SELECT 
+            p.id, 
+            p.username, 
+            p.caption, 
+            p."postedAt",
+            t.text as "transcriptText",
+            1 - (e.vector <=> ${queryVector}::vector) as similarity
+          FROM "Embedding" e
+          JOIN "Transcript" t ON e."transcriptId" = t.id
+          JOIN "Post" p ON t."postId" = p.id
+          WHERE p.username = ${username}
+          ORDER BY similarity DESC
+          LIMIT ${Number(limit)};
+        `;
+      } else {
+        rawResults = await prisma.$queryRaw`
+          SELECT 
+            p.id, 
+            p.username, 
+            p.caption, 
+            p."postedAt",
+            t.text as "transcriptText",
+            1 - (e.vector <=> ${queryVector}::vector) as similarity
+          FROM "Embedding" e
+          JOIN "Transcript" t ON e."transcriptId" = t.id
+          JOIN "Post" p ON t."postId" = p.id
+          ORDER BY similarity DESC
+          LIMIT ${Number(limit)};
+        `;
+      }
+
+      return { results: rawResults };
+    } catch (e) {
+      request.log.error(e);
+      return reply.status(500).send({ error: 'Search failed' });
+    }
+  });
 };
