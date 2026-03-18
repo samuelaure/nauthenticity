@@ -23,6 +23,7 @@ model Post {
   engagementScore Float?
   
   collaborators   Json?    // Stores collaborator info { username, profilePicUrl, role? }[]
+  intelligence    Json?    // Stores extracted hooks, pillars, and CTA
   
   runId           String?
   run             ScrapingRun? @relation(fields: [runId], references: [id])
