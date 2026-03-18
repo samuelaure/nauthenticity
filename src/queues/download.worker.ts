@@ -98,26 +98,26 @@ export const downloadWorker = new Worker(
                 if (done) break;
                 downloadedBytes += value.length;
                 writeStream.write(value);
-                
+
                 if (totalSize > 0) {
                   const progress = Math.round((downloadedBytes / totalSize) * 100);
-                  await job.updateProgress({ 
-                    progress, 
+                  await job.updateProgress({
+                    progress,
                     step: `Downloading...`,
                     mediaId,
                     postId,
-                    currentItem: { username, type, postedAt: '(downloading)' }
+                    currentItem: { username, type, postedAt: '(downloading)' },
                   });
                 }
               }
               writeStream.end();
             }
 
-          // 2. Atomic rename to final path
-          atomicMove(tempFilePath, finalPath);
-        } else {
-          logger.info(`[DownloadWorker] File already exists at final path, skipping download.`);
-        }
+            // 2. Atomic rename to final path
+            atomicMove(tempFilePath, finalPath);
+          } else {
+            logger.info(`[DownloadWorker] File already exists at final path, skipping download.`);
+          }
 
           // 3. Update DB
           await prisma.media.update({
@@ -139,14 +139,18 @@ export const downloadWorker = new Worker(
             });
 
             if (pendingCount === 0) {
-              logger.info(`[DownloadWorker] Run ${runId} fully downloaded. Transitioning to OPTIMIZING.`);
-              
+              logger.info(
+                `[DownloadWorker] Run ${runId} fully downloaded. Transitioning to VISUALIZING.`,
+              );
+
               await prisma.scrapingRun.update({
                 where: { id: runId },
-                data: { phase: 'optimizing' },
+                data: { phase: 'visualizing' },
               });
 
-              await computeQueue.add('optimize-batch', { runId, username });
+              // Kick off the first step of the compute pipeline.
+              // The pipeline order is defined in compute.worker.ts PIPELINE constant.
+              await computeQueue.add('visualize-batch', { runId, username });
             }
           }
 

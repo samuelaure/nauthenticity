@@ -1,4 +1,4 @@
-import { runInstagramScraper, getProfileInfo } from '../../services/apify.service';
+import { runInstagramScraper } from '../../services/apify.service';
 import { prisma } from '../../db/prisma';
 import { downloadQueue } from '../../queues/download.queue';
 import { logger } from '../../utils/logger';
@@ -7,7 +7,7 @@ export const ingestProfile = async (
   username: string,
   maxPosts = 10,
   onProgress?: (progress: number, data?: any) => Promise<void>,
-  options: { updateSync?: boolean } = {}
+  options: { updateSync?: boolean } = {},
 ) => {
   logger.info(`[Ingester] Starting ingestion for ${username}`);
 
@@ -62,28 +62,33 @@ export const ingestProfile = async (
     runId = cachedRun.id;
   } else {
     if (onProgress) await onProgress(5, { step: `Starting Apify actor for ${username}...` });
-    const scrapeResult = await runInstagramScraper(username, maxPosts, async (status) => {
-      // If we see the Run ID reported, we track it as 'pending' in the DB
-      if (status.startsWith('Run ID: ')) {
-        const id = status.replace('Run ID: ', '');
-        try {
-          await prisma.scrapingRun.upsert({
-            where: { actorRunId: id },
-            update: { username },
-            create: {
-              username,
-              actorRunId: id,
-              status: 'pending',
-              phase: 'scraping'
-            }
-          });
-        } catch (dbErr) {
-          logger.warn(`[Ingester] Could not track pending Run ID ${id}: ${dbErr}`);
+    const scrapeResult = await runInstagramScraper(
+      username,
+      maxPosts,
+      async (status) => {
+        // If we see the Run ID reported, we track it as 'pending' in the DB
+        if (status.startsWith('Run ID: ')) {
+          const id = status.replace('Run ID: ', '');
+          try {
+            await prisma.scrapingRun.upsert({
+              where: { actorRunId: id },
+              update: { username },
+              create: {
+                username,
+                actorRunId: id,
+                status: 'pending',
+                phase: 'scraping',
+              },
+            });
+          } catch (dbErr) {
+            logger.warn(`[Ingester] Could not track pending Run ID ${id}: ${dbErr}`);
+          }
         }
-      }
-      if (onProgress) await onProgress(5, { step: status });
-    }, oldestPostDate);
-    
+        if (onProgress) await onProgress(5, { step: status });
+      },
+      oldestPostDate,
+    );
+
     items = scrapeResult.items;
 
     // Immediately update the main account with the high-res profile found during the feed scrape
@@ -92,7 +97,7 @@ export const ingestProfile = async (
       if (hdUrl) {
         await prisma.account.updateMany({
           where: { username: scrapeResult.profile.username },
-          data: { profileImageUrl: hdUrl }
+          data: { profileImageUrl: hdUrl },
         });
         // Queue Profile Image download
         await downloadQueue.add('process-profile-image', {
@@ -157,7 +162,7 @@ export const ingestProfile = async (
       // 1. Identify all collaborators (Owner + Co-authors + Tagged)
       const collaborators: any[] = [];
       const primaryOwner = item.ownerUsername || item.accountUsername || item.account_username;
-      
+
       // Joint Authors (Official collab)
       const coauthors = item.coauthorProducers || item.coauthor_producers || [];
       if (Array.isArray(coauthors)) {
@@ -165,20 +170,29 @@ export const ingestProfile = async (
           const u = c.username || c.user?.username;
           const p = c.profilePicUrl || c.profile_pic_url || c.user?.profilePicUrl;
           if (u && u !== username) {
-             collaborators.push({ username: u, profilePicUrl: p, role: 'co-author' });
+            collaborators.push({ username: u, profilePicUrl: p, role: 'co-author' });
           }
         });
       }
 
       // Originating Owner (if different from scraped account)
-      if (primaryOwner && primaryOwner !== username && !collaborators.find(c => c.username === primaryOwner)) {
-        const p = item.owner?.profilePicUrl || item.owner?.profile_pic_url || item.owner?.profile_pic_url_hd;
+      if (
+        primaryOwner &&
+        primaryOwner !== username &&
+        !collaborators.find((c) => c.username === primaryOwner)
+      ) {
+        const p =
+          item.owner?.profilePicUrl ||
+          item.owner?.profile_pic_url ||
+          item.owner?.profile_pic_url_hd;
         collaborators.push({ username: primaryOwner, profilePicUrl: p, role: 'origin' });
       }
 
       // 2. Ensure all discovered collaborators have Accounts and local avatars
       for (const collab of collaborators) {
-        let collabAccount = await prisma.account.findUnique({ where: { username: collab.username } });
+        let collabAccount = await prisma.account.findUnique({
+          where: { username: collab.username },
+        });
         if (!collabAccount && collab.username) {
           collabAccount = await prisma.account.create({
             data: {
@@ -192,7 +206,8 @@ export const ingestProfile = async (
         // Queue collab profile image download if we have a URL and it's not local
         if (
           collab.profilePicUrl &&
-          (!collabAccount?.profileImageUrl || !collabAccount.profileImageUrl.startsWith('/content/'))
+          (!collabAccount?.profileImageUrl ||
+            !collabAccount.profileImageUrl.startsWith('/content/'))
         ) {
           await downloadQueue.add('process-profile-image', {
             username: collab.username,
