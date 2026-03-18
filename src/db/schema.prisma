@@ -64,7 +64,7 @@ model Media {
   postId      String
   post        Post     @relation(fields: [postId], references: [id])
   type        String   // "video" | "image"
-  url         String   // Original source URL (needed for resume)
+  url         String?  // Original source URL (needed for resume)
   storageUrl    String   // Local path or R2 URL
   thumbnailUrl  String?  // Local path for fast preview
   duration      Float?

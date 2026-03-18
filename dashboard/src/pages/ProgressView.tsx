@@ -387,7 +387,6 @@ const PostRow = ({ post }: { post: PostProgress }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const ProgressView = () => {
-  const queryClient = useQueryClient();
   const { data: accounts } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
   const location = useLocation();
   const [selected, setSelected] = React.useState<string | null>(null);
