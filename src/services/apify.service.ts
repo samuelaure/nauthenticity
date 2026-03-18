@@ -179,6 +179,7 @@ export const runUniversalInstagramScraper = async (
   maxPosts = 10,
   onStatus?: (message: string) => Promise<void>,
   mode: 'FEED' | 'PROFILE' = 'FEED',
+  oldestPostDate?: string
 ): Promise<{ profile: NauIGProfile; items: NauIGPost[]; runId: string; datasetId: string }> => {
   logger.info(
     `[Apify] Starting universal scrape (${mode}) for ${username} (limit: ${maxPosts})...`,
@@ -195,6 +196,7 @@ export const runUniversalInstagramScraper = async (
           limit: mode === 'PROFILE' ? 1 : maxPosts,
           sortDirection: 'desc',
           proxyConfiguration: { useApifyProxy: true },
+          ...(oldestPostDate ? { oldestPostDate } : {}),
         },
         { waitSecs: 3600, memory: 1024 } as any,
       );
@@ -238,6 +240,54 @@ export const runUniversalInstagramScraper = async (
   };
 };
 
+export const runUniversalProfilesScraper = async (
+  usernames: string[],
+  onStatus?: (message: string) => Promise<void>,
+): Promise<{ profiles: NauIGProfile[]; runId: string; datasetId: string }> => {
+  logger.info(`[Apify] Starting universal profile scrape for ${usernames.length} usernames...`);
+
+  const { items, run } = await withRetry(
+    async () => {
+      if (onStatus) await onStatus(`Waiting for Apify actor to start (PROFILE batch)...`);
+      
+      const actorRun = await client.actor(config.apify.instagramUniversalActorId).call(
+        {
+          mode: 'PROFILE',
+          usernames,
+          limit: 1, // 1 per profile
+          proxyConfiguration: { useApifyProxy: true },
+        },
+        { waitSecs: 3600, memory: 1024 } as any,
+      );
+
+      // Report runId so it can be aborted if needed
+      if (onStatus) await onStatus(`Run ID: ${actorRun.id}`);
+
+      if (actorRun.status !== 'SUCCEEDED') {
+        logger.warn(`[Apify] Actor run ${actorRun.id} status: ${actorRun.status}`);
+        if (actorRun.status === 'ABORTED' || actorRun.status === 'TIMED-OUT') {
+          const err = new Error(`Apify actor run status: ${actorRun.status}`);
+          (err as any).noRetry = true;
+          throw err;
+        }
+        throw new Error(`Apify actor run status: ${actorRun.status}`);
+      }
+
+      const { items: datasetItems } = await client.dataset(actorRun.defaultDatasetId).listItems({
+        limit: usernames.length + 10,
+      });
+      return { items: datasetItems as any[], run: actorRun };
+    },
+    { attempts: 3, delay: 5000, factor: 2 },
+  );
+
+  return {
+    profiles: items as NauIGProfile[],
+    runId: run.id,
+    datasetId: run.defaultDatasetId,
+  };
+};
+
 // --- Legacy Functions ---
 
 // Actor: apify/instagram-scraper
@@ -276,18 +326,22 @@ export const runInstagramScraper = async (
   username: string,
   maxPosts = 10,
   onStatus?: (message: string) => Promise<void>,
-): Promise<{ items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
+  oldestPostDate?: string
+): Promise<{ profile: ApifyProfileInfo; items: ApifyInstagramPost[]; datasetId: string; actorRunId: string }> => {
   try {
-    // We now use the universal scraper but map it to the old format for stability
-    const { profile: _, items, runId, datasetId } = await runUniversalInstagramScraper(
+    const { profile: rawProfile, items, runId, datasetId } = await runUniversalInstagramScraper(
       username,
       maxPosts,
       onStatus,
+      'FEED',
+      oldestPostDate
     );
 
     const mappedItems = items.map(mapNauPostToApifyPost);
+    const mappedProfile = mapNauProfileToApifyProfile(rawProfile);
 
     return {
+      profile: mappedProfile,
       items: mappedItems,
       datasetId,
       actorRunId: runId,
@@ -345,6 +399,20 @@ export const getProfileInfo = async (
           ...
     */
     return null;
+  }
+};
+
+export const getProfilesInfo = async (
+  usernames: string[],
+  onStatus?: (message: string) => Promise<void>,
+): Promise<ApifyProfileInfo[]> => {
+  if (usernames.length === 0) return [];
+  try {
+    const { profiles } = await runUniversalProfilesScraper(usernames, onStatus);
+    return profiles.map(mapNauProfileToApifyProfile);
+  } catch (error: any) {
+    logger.error(`[Apify] Error fetching batch profiles via universal: ${error.message}`);
+    return [];
   }
 };
 

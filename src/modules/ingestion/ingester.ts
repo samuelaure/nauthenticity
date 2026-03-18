@@ -7,46 +7,29 @@ export const ingestProfile = async (
   username: string,
   maxPosts = 10,
   onProgress?: (progress: number, data?: any) => Promise<void>,
+  options: { updateSync?: boolean } = {}
 ) => {
   logger.info(`[Ingester] Starting ingestion for ${username}`);
 
-  // 0. Ensure Account exists (Identity)
+  // 0. Ensure Account exists (Identity) - Placeholder
   let account = await prisma.account.findUnique({ where: { username } });
   if (!account) {
-    logger.info(`[Ingester] Account ${username} not found. Fetching profile info...`);
-    try {
-      const profile = await getProfileInfo(username);
-      if (profile) {
-        account = await prisma.account.create({
-          data: {
-            username: profile.username,
-            profileImageUrl: profile.profilePicUrlHD || profile.profilePicUrl,
-            lastScrapedAt: new Date(),
-          },
-        });
-      } else {
-        logger.warn(
-          `[Ingester] Could not fetch profile info for ${username}. Creating placeholder.`,
-        );
-        account = await prisma.account.create({
-          data: { username, lastScrapedAt: new Date() },
-        });
-      }
-    } catch (e) {
-      logger.error(`[Ingester] Error fetching profile info: ${e}`);
-      account = await prisma.account.create({
-        data: { username, lastScrapedAt: new Date() },
-      });
-    }
+    logger.info(`[Ingester] Account ${username} not found. Creating placeholder.`);
+    account = await prisma.account.create({
+      data: { username, lastScrapedAt: new Date() },
+    });
   }
 
-  // Queue Profile Image download if not local
-  if (account.profileImageUrl && !account.profileImageUrl.startsWith('/content/')) {
-    await downloadQueue.add('process-profile-image', {
-      username: account.username,
-      url: account.profileImageUrl,
-      contextUsername: username, // The account currently being scraped
+  let oldestPostDate: string | undefined;
+  if (options.updateSync) {
+    const latestPost = await prisma.post.findFirst({
+      where: { username },
+      orderBy: { postedAt: 'desc' },
     });
+    if (latestPost) {
+      oldestPostDate = latestPost.postedAt.toISOString().split('T')[0];
+      logger.info(`[Ingester] Update Sync active. Oldest post date to fetch: ${oldestPostDate}`);
+    }
   }
 
   // 1. Check for cached run (within last 24 hours) to avoid duplicated Apify costs
@@ -64,7 +47,15 @@ export const ingestProfile = async (
   let items: any[] = [];
   let runId: string | undefined;
 
-  if (cachedRun && cachedRun.rawData) {
+  let useCache = false;
+  if (cachedRun && cachedRun.rawData && !options.updateSync) {
+    const cachedItems = cachedRun.rawData as any[];
+    if (cachedItems.length >= maxPosts) {
+      useCache = true;
+    }
+  }
+
+  if (useCache && cachedRun) {
     logger.info(`[Ingester] Using cached scraping results from run ${cachedRun.id}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     items = cachedRun.rawData as any[];
@@ -91,8 +82,26 @@ export const ingestProfile = async (
         }
       }
       if (onProgress) await onProgress(5, { step: status });
-    });
+    }, oldestPostDate);
+    
     items = scrapeResult.items;
+
+    // Immediately update the main account with the high-res profile found during the feed scrape
+    if (scrapeResult.profile && scrapeResult.profile.username) {
+      const hdUrl = scrapeResult.profile.profilePicUrlHD || scrapeResult.profile.profilePicUrl;
+      if (hdUrl) {
+        await prisma.account.updateMany({
+          where: { username: scrapeResult.profile.username },
+          data: { profileImageUrl: hdUrl }
+        });
+        // Queue Profile Image download
+        await downloadQueue.add('process-profile-image', {
+          username: scrapeResult.profile.username,
+          url: hdUrl,
+          contextUsername: username,
+        });
+      }
+    }
 
     // Finalize the run after finished
     const run = await prisma.scrapingRun.upsert({
@@ -145,42 +154,50 @@ export const ingestProfile = async (
       // Force the post to belong to the account we are scraping (User Request)
       const postUsername = username;
 
-      // Detect Collaboration / Origin
-      const actualOwner = item.ownerUsername || item.account_username;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // 1. Identify all collaborators (Owner + Co-authors + Tagged)
       const collaborators: any[] = [];
-
-      if (actualOwner && actualOwner !== username) {
-        logger.info(`[Ingester] Detected collaboration/origin: ${actualOwner}`);
-        const collabProfileUrl = item.owner?.profile_pic_url || item.owner?.profilePicUrl;
-
-        collaborators.push({
-          username: actualOwner,
-          profilePicUrl: collabProfileUrl,
-          role: 'origin',
+      const primaryOwner = item.ownerUsername || item.accountUsername || item.account_username;
+      
+      // Joint Authors (Official collab)
+      const coauthors = item.coauthorProducers || item.coauthor_producers || [];
+      if (Array.isArray(coauthors)) {
+        coauthors.forEach((c: any) => {
+          const u = c.username || c.user?.username;
+          const p = c.profilePicUrl || c.profile_pic_url || c.user?.profilePicUrl;
+          if (u && u !== username) {
+             collaborators.push({ username: u, profilePicUrl: p, role: 'co-author' });
+          }
         });
+      }
 
-        // Ensure collaborator has an Account record (but no posts, so it's hidden)
-        let collabAccount = await prisma.account.findUnique({ where: { username: actualOwner } });
-        if (!collabAccount) {
+      // Originating Owner (if different from scraped account)
+      if (primaryOwner && primaryOwner !== username && !collaborators.find(c => c.username === primaryOwner)) {
+        const p = item.owner?.profilePicUrl || item.owner?.profile_pic_url || item.owner?.profile_pic_url_hd;
+        collaborators.push({ username: primaryOwner, profilePicUrl: p, role: 'origin' });
+      }
+
+      // 2. Ensure all discovered collaborators have Accounts and local avatars
+      for (const collab of collaborators) {
+        let collabAccount = await prisma.account.findUnique({ where: { username: collab.username } });
+        if (!collabAccount && collab.username) {
           collabAccount = await prisma.account.create({
             data: {
-              username: actualOwner,
-              profileImageUrl: collabProfileUrl,
+              username: collab.username,
+              profileImageUrl: collab.profilePicUrl,
               lastScrapedAt: new Date(),
             },
           });
         }
 
-        // Queue collab profile image
+        // Queue collab profile image download if we have a URL and it's not local
         if (
-          collabProfileUrl &&
-          (!collabAccount.profileImageUrl || !collabAccount.profileImageUrl.startsWith('/content/'))
+          collab.profilePicUrl &&
+          (!collabAccount?.profileImageUrl || !collabAccount.profileImageUrl.startsWith('/content/'))
         ) {
           await downloadQueue.add('process-profile-image', {
-            username: actualOwner,
-            url: collabProfileUrl,
-            contextUsername: username, // Store inside the currently scraped account folder
+            username: collab.username,
+            url: collab.profilePicUrl,
+            contextUsername: username, // Store in context of mainly scraped account
           });
         }
       }

@@ -9,7 +9,7 @@ import { transcribeAudio } from '../services/transcription.service';
 import { logContextStorage } from '../utils/context';
 import { computeQueue } from './compute.queue';
 import { downloadQueue } from './download.queue';
-import { getProfileInfo } from '../services/apify.service';
+import { getProfileInfo, getProfilesInfo } from '../services/apify.service';
 
 interface ComputeMediaData {
   postId: string;
@@ -218,31 +218,11 @@ export const computeWorker = new Worker(
         
         if (await checkPaused(runId)) return { paused: true };
 
-        // 1. Sync Main Profile via Actor (Get high-res)
-        try {
-          logger.info(`[ComputeWorker] Fetching fresh profile info for ${contextUsername}`);
-          const profile = await getProfileInfo(contextUsername);
-          if (profile) {
-            await prisma.account.update({
-              where: { username: contextUsername },
-              data: {
-                profileImageUrl: profile.profilePicUrlHD || profile.profilePicUrl,
-              }
-            });
-            // Queue download of the new high-res image
-            await downloadQueue.add('process-profile-image', { 
-              username: contextUsername, 
-              url: profile.profilePicUrlHD || profile.profilePicUrl, 
-              contextUsername 
-            });
-          }
-        } catch (e) {
-          logger.warn(`[ComputeWorker] Failed to sync main profile for ${contextUsername}: ${e}`);
-        }
+        // Get All unique collaborators in one shot (batching)
+        // Skip the main contextUsername because we already got their HD profile during the feed ingest!
+        const usernamesToScrape = new Set<string>();
 
-        // 2. Sync Collaborators
         const posts = await prisma.post.findMany({ where: { runId }, select: { username: true, postedAt: true, collaborators: true } });
-        const collabs = new Set<string>();
         for (let i = 0; i < posts.length; i++) {
           if (await checkPaused(runId)) return { paused: true };
           const p = posts[i];
@@ -254,21 +234,56 @@ export const computeWorker = new Worker(
           });
 
           const cs = p.collaborators as any[];
-          if (Array.isArray(cs)) cs.forEach(c => c.username && c.profilePicUrl && collabs.add(JSON.stringify({ u: c.username, p: c.profilePicUrl })));
+          if (Array.isArray(cs)) {
+            cs.forEach(c => {
+              if (c.username && c.username !== contextUsername) {
+                usernamesToScrape.add(c.username);
+              }
+            });
+          }
         }
 
-        const collabList = Array.from(collabs);
-        for (let i = 0; i < collabList.length; i++) {
-          if (await checkPaused(runId)) return { paused: true };
-          const { u, p } = JSON.parse(collabList[i]);
-          
-          await job.updateProgress({ 
-            progress: Math.round((i / collabList.length) * 100), 
-            step: `Syncing Collaborator ${i + 1}/${collabList.length}`,
-            currentItem: { username: u, postedAt: '(collab)', type: 'profile' }
+        const usernamesArray = Array.from(usernamesToScrape);
+        if (usernamesArray.length > 0) {
+          logger.info(`[ComputeWorker] Fetching fresh HD profile info for ${usernamesArray.length} collaborators in batch...`);
+
+        try {
+          const profiles = await getProfilesInfo(usernamesArray, async (msg: string) => {
+            logger.info(`[ComputeWorker-Profiles] ${msg}`);
           });
 
-          await downloadQueue.add('process-profile-image', { username: u, url: p, contextUsername });
+          for (let i = 0; i < profiles.length; i++) {
+            if (await checkPaused(runId)) return { paused: true };
+
+            const profile = profiles[i];
+            if (!profile || !profile.username) continue;
+
+            await job.updateProgress({ 
+              progress: Math.round((i / profiles.length) * 100), 
+              step: `Syncing Collaborator ${i + 1}/${profiles.length}`,
+              currentItem: { username: profile.username, postedAt: '(collab)', type: 'profile' }
+            });
+
+            const imgUrl = profile.profilePicUrlHD || profile.profilePicUrl;
+
+            // Upsert the updated high-res URL
+            await prisma.account.updateMany({
+              where: { username: profile.username },
+              data: { profileImageUrl: imgUrl }
+            });
+
+            // Queue download of the new high-res image
+            await downloadQueue.add('process-profile-image', { 
+              username: profile.username, 
+              url: imgUrl, 
+              contextUsername 
+            });
+          }
+          } catch (e) {
+            logger.warn(`[ComputeWorker] Failed to sync batch profiles: ${e}`);
+          }
+        } else {
+          logger.info(`[ComputeWorker] No new collaborators to sync.`);
         }
 
         if (await checkPaused(runId)) return { paused: true };
