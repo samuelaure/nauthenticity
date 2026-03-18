@@ -17,7 +17,7 @@ import { getProfilesInfo } from '../services/apify.service';
 // To re-sort the pipeline, simply change the order of step names in PIPELINE.
 // ---------------------------------------------------------------------------
 
-type PipelineStepName =
+export type PipelineStepName =
   | 'visualize-batch'
   | 'profile-sync-batch'
   | 'optimize-batch'
@@ -32,7 +32,7 @@ const PIPELINE: PipelineStepName[] = [
 ];
 
 /** Maps a pipeline step name to the DB phase label used in scrapingRun.phase */
-const PHASE_LABELS: Record<PipelineStepName, string> = {
+export const PHASE_LABELS: Record<PipelineStepName, string> = {
   'visualize-batch': 'visualizing',
   'profile-sync-batch': 'profiling',
   'optimize-batch': 'optimizing',
@@ -198,9 +198,12 @@ const handleVisualizeBatch = async (
   ensureDir(userDir);
 
   for (let i = 0; i < mediaItems.length; i++) {
-    if (await checkPaused(runId)) {
-      logger.info(`[ComputeWorker] Run ${runId} PAUSED during Visualization. Stopping batch.`);
-      return { paused: true };
+    // B4: Optimize Pause Check (only check every 50 items)
+    if (i % 50 === 0) {
+      if (await checkPaused(runId)) {
+        logger.info(`[ComputeWorker] Run ${runId} PAUSED during Visualization. Stopping batch.`);
+        return { paused: true };
+      }
     }
     const m = mediaItems[i];
 
@@ -328,9 +331,12 @@ const handleOptimizeBatch = async (
   });
 
   for (let i = 0; i < mediaItems.length; i++) {
-    if (await checkPaused(runId)) {
-      logger.info(`[ComputeWorker] Run ${runId} PAUSED during Optimization. Stopping batch.`);
-      return { paused: true };
+    // B4: Optimize Pause Check (only check every 50 items)
+    if (i % 50 === 0) {
+      if (await checkPaused(runId)) {
+        logger.info(`[ComputeWorker] Run ${runId} PAUSED during Optimization. Stopping batch.`);
+        return { paused: true };
+      }
     }
 
     const m = mediaItems[i];
@@ -369,9 +375,12 @@ const handleTranscribeBatch = async (
   });
 
   for (let i = 0; i < mediaItems.length; i++) {
-    if (await checkPaused(runId)) {
-      logger.info(`[ComputeWorker] Run ${runId} PAUSED during Transcription. Stopping batch.`);
-      return { paused: true };
+    // B4: Optimize Pause Check (only check every 50 items)
+    if (i % 50 === 0) {
+      if (await checkPaused(runId)) {
+        logger.info(`[ComputeWorker] Run ${runId} PAUSED during Transcription. Stopping batch.`);
+        return { paused: true };
+      }
     }
     const m = mediaItems[i];
 

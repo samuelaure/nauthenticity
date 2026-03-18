@@ -5,6 +5,7 @@ import { computeQueue } from '../../queues/compute.queue';
 import { abortActorRun } from '../../services/apify.service';
 import { prisma } from '../../db/prisma';
 import { logger } from '../../utils/logger';
+import { PipelineStepName, PHASE_LABELS } from '../../queues/compute.worker';
 
 export const ingestionController = async (fastify: FastifyInstance) => {
   fastify.post(
@@ -161,7 +162,6 @@ export const ingestionController = async (fastify: FastifyInstance) => {
       data: { isPaused: false },
     });
 
-    // Resume by re-injecting the batch job for the current phase
     const { phase, id: runId } = run;
     logger.info(`[IngestionController] Resuming run ${runId} (@${username}) in phase: ${phase}`);
 
@@ -180,14 +180,17 @@ export const ingestionController = async (fastify: FastifyInstance) => {
           username,
         });
       }
-    } else if (phase === 'optimizing') {
-      await computeQueue.add('optimize-batch', { runId, username });
-    } else if (phase === 'visualizing') {
-      await computeQueue.add('visualize-batch', { runId, username });
-    } else if (phase === 'profiling') {
-      await computeQueue.add('profile-sync-batch', { runId, username });
-    } else if (phase === 'transcribing') {
-      await computeQueue.add('transcribe-batch', { runId, username });
+    } else {
+      // Find the compute job name by looking up the phase label
+      const stepName = (Object.keys(PHASE_LABELS) as PipelineStepName[]).find(
+        (key) => PHASE_LABELS[key] === phase,
+      );
+
+      if (stepName) {
+        await computeQueue.add(stepName, { runId, username });
+      } else if (phase !== 'scraped' && phase !== 'finished') {
+        logger.warn(`[IngestionController] Resume requested for unknown phase: ${phase}`);
+      }
     }
 
     return reply.send({ status: 'resumed', phase });

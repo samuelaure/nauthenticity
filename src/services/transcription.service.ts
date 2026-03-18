@@ -9,20 +9,22 @@ export interface TranscriptionResult {
   json?: any;
 }
 
-if (!config.transcription.url) {
-  // Fail loudly at startup — we never want to silently charge OpenAI for 5k videos
-  throw new Error(
-    '[Transcription] TRANSCRIPTION_URL is not configured. ' +
-      'Start the local Whisper container (infrastructure/whisper) and set TRANSCRIPTION_URL in .env.',
-  );
-}
-
-const openai = new OpenAI({
-  apiKey: 'local-no-key', // Whisper OSS does not require an API key
-  baseURL: `${config.transcription.url}/v1`,
-});
+let openai: OpenAI | null = null;
 
 export const transcribeAudio = async (filePath: string): Promise<TranscriptionResult> => {
+  if (!config.transcription.url) {
+    throw new Error(
+      '[Transcription] TRANSCRIPTION_URL is not configured. ' +
+        'Start the local Whisper container (infrastructure/whisper) and set TRANSCRIPTION_URL in .env.',
+    );
+  }
+
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: 'local-no-key', // Whisper OSS does not require an API key
+      baseURL: `${config.transcription.url}/v1`,
+    });
+  }
   try {
     logger.info(
       `[Transcription] Transcribing ${filePath} using local whisper @ ${config.transcription.url} ...`,

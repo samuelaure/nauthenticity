@@ -12,9 +12,6 @@ export const config = {
   },
   apify: {
     token: env.APIFY_TOKEN,
-    instagramPostActorId: 'gcfjdE6gC9K5aGsgi', // perfectscrape/mass-instagram-profile-posts-scraper
-    instagramSidecarActorId: 'apify/instagram-scraper',
-    instagramProfileActorId: 'PP60E1JIfagMaQxIP', // coderx/instagram-profile-scraper-bio-posts
     instagramUniversalActorId: env.APIFY_INSTAGRAM_UNIVERSAL_ACTOR_ID,
   },
   openai: {

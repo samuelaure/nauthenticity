@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 export async function withRetry<T>(
   fn: () => Promise<T>,
   options: {
@@ -6,22 +8,21 @@ export async function withRetry<T>(
     factor: number;
   } = { attempts: 3, delay: 2000, factor: 2 },
 ): Promise<T> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let lastError: any;
   let currentDelay = options.delay;
 
   for (let i = 0; i < options.attempts; i++) {
     try {
       return await fn();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       lastError = error;
-      // Immediate stop if flagged
-      if (error.noRetry) {
+
+      // Immediate stop if flagged or specific error type
+      if (error.noRetry || error.name === 'NoRetryError') {
         throw error;
       }
 
-      console.warn(
+      logger.warn(
         `[Retry] Attempt ${i + 1} failed: ${error.message}. Retrying in ${currentDelay}ms...`,
       );
 

@@ -12,9 +12,9 @@ import { logger } from './utils/logger';
 import { errorHandler } from './utils/errorHandler';
 
 // Import Workers (Registers them with BullMQ)
-import './queues/download.worker';
-import './queues/compute.worker';
-import './queues/ingestion.worker';
+import { downloadWorker } from './queues/download.worker';
+import { computeWorker } from './queues/compute.worker';
+import { ingestionWorker } from './queues/ingestion.worker';
 
 // Import Controllers
 import { ingestionController } from './modules/ingestion/ingestion.controller';
@@ -96,6 +96,15 @@ fastify.register(contentController, { prefix: '/api' });
 fastify.register(analyticsController, { prefix: '/api' });
 const start = async () => {
   try {
+    // D2: Startup Readiness Check
+    logger.info('[App] Verifying infrastructure connectivity...');
+    await Promise.all([
+      prisma.$queryRaw`SELECT 1`.then(() => logger.info('[App] Postgres connection OK')),
+      ingestionWorker
+        .waitUntilReady()
+        .then(() => logger.info('[App] Redis (BullMQ) connection OK')),
+    ]);
+
     await fastify.listen({ port: config.port, host: '0.0.0.0' });
     logger.info(`[App] Server listening on ${config.port} in ${env.NODE_ENV} mode`);
   } catch (err) {
@@ -112,12 +121,13 @@ const shutdown = async (signal: string) => {
     await fastify.close();
     logger.info('[App] Fastify server closed.');
 
+    // B2: Graceful Shutdown for Workers
+    logger.info('[App] Closing BullMQ workers...');
+    await Promise.all([ingestionWorker.close(), downloadWorker.close(), computeWorker.close()]);
+    logger.info('[App] All BullMQ workers closed.');
+
     await prisma.$disconnect();
     logger.info('[App] Prisma disconnected.');
-
-    // Redis/BullMQ cleanup handled by worker process exits usually,
-    // but explicit close is better if workers are in the same process.
-    // For now, these are enough.
 
     process.exit(0);
   } catch (err) {
