@@ -18,7 +18,7 @@ export const ingestionController = async (fastify: FastifyInstance) => {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const { username, limit } = request.body as { username: string; limit?: number };
+      const { username, limit, updateSync } = request.body as { username: string; limit?: number; updateSync?: boolean };
 
       if (!username) {
         return reply.status(400).send({ error: 'Username is required' });
@@ -40,6 +40,7 @@ export const ingestionController = async (fastify: FastifyInstance) => {
         const job = await ingestionQueue.add('start-ingestion', {
           username,
           limit: limit || 10,
+          updateSync,
         });
 
         logger.info(`[IngestionController] Queued ingestion job ${job.id} for ${username}`);
