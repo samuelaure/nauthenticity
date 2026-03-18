@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { getAccount, getMediaUrl, API_URL, type Post } from '../lib/api';
-import { ArrowLeft, MessageCircle, Heart, Download } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { getAccount, getMediaUrl, API_URL, ingestAccount, type Post } from '../lib/api';
+import { ArrowLeft, MessageCircle, Heart, Download, RefreshCw, Database } from 'lucide-react';
 
 const PostGridItem = ({ post }: { post: Post }) => {
   const [isHovered, setIsHovered] = React.useState(false);
@@ -134,6 +134,12 @@ export const AccountView = () => {
   });
 
   const [sort, setSort] = React.useState<'recent' | 'oldest' | 'likes' | 'comments'>('recent');
+  const [scrapeLimit, setScrapeLimit] = React.useState<number>(50);
+  const navigate = useNavigate();
+  const ingestMutation = useMutation({
+    mutationFn: ingestAccount,
+    onSuccess: () => navigate(`/progress?username=${username}`),
+  });
 
   if (isLoading) return <div>Loading...</div>;
   if (!account) return <div>Account not found</div>;
@@ -219,6 +225,69 @@ export const AccountView = () => {
         >
           <Download size={16} /> Export to TXT
         </a>
+        <button
+          className="btn-secondary"
+          onClick={() => ingestMutation.mutate({ username: account.username, limit: 50, updateSync: true })}
+          disabled={ingestMutation.isPending}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.5rem 1rem',
+            fontSize: '0.875rem',
+            borderRadius: '4px',
+            background: 'var(--accent-primary)',
+            color: 'white',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+          title="Update Sync: Check for new posts"
+        >
+          <RefreshCw size={16} /> Update Sync
+        </button>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            ingestMutation.mutate({ username: account.username, limit: scrapeLimit });
+          }}
+          style={{ display: 'flex', gap: '0.5rem' }}
+        >
+          <input
+            type="number"
+            value={scrapeLimit}
+            onChange={(e) => setScrapeLimit(Number(e.target.value))}
+            min={1}
+            max={10000}
+            style={{
+              background: 'var(--card-bg)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+              padding: '0.5rem',
+              borderRadius: '4px',
+              width: '80px',
+            }}
+          />
+          <button
+            type="submit"
+            className="btn-secondary"
+            disabled={ingestMutation.isPending}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.5rem 1rem',
+              fontSize: '0.875rem',
+              borderRadius: '4px',
+              background: '#444',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+            title="Scrape historical posts"
+          >
+            <Database size={16} /> Scrape
+          </button>
+        </form>
       </div>
 
       <div className="posts-grid">

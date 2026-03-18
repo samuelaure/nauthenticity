@@ -52,6 +52,7 @@ export const AddAccountForm = ({ initialUsername = '' }: { initialUsername?: str
           borderRadius: '6px',
           width: '80px',
         }}
+        placeholder="Posts"
       />
       <button 
         type="submit" 
