@@ -87,5 +87,15 @@ model Transcript {
   originalText String? // Stores original Whisper text if edited
   json        Json?    // Full Whisper response with timestamps
   
-  createdAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  embedding    Embedding?
+}
+
+model Embedding {
+  id           String     @id @default(uuid())
+  transcriptId String     @unique
+  transcript   Transcript @relation(fields: [transcriptId], references: [id])
+  vector       Unsupported("vector(1536)")
+  model        String     @default("text-embedding-3-small")
+  createdAt    DateTime   @default(now())
 }
