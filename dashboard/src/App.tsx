@@ -23,9 +23,6 @@ function App() {
               <Link to="/" className="nav-link">
                 Accounts
               </Link>
-              <Link to="/queue" className="nav-link">
-                Queues
-              </Link>
               <Link to="/progress" className="nav-link">
                 Progress
               </Link>
@@ -35,7 +32,6 @@ function App() {
             <Route path="/" element={<AccountsList />} />
             <Route path="/accounts/:username" element={<AccountView />} />
             <Route path="/posts/:id" element={<PostView />} />
-            <Route path="/queue" element={<QueueView />} />
             <Route path="/progress" element={<ProgressView />} />
           </Routes>
         </div>

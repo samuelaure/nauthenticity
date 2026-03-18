@@ -3,16 +3,96 @@ import { useLocation } from 'react-router-dom';
 import {
   getAccountProgress,
   getAccounts,
+  getQueueStatus,
   abortIngestion,
   pauseIngestion,
   resumeIngestion,
+  deleteJob,
   type AccountProgress,
   type PostProgress,
+  type QueueMetrics,
 } from '../lib/api';
 import { formatDistanceToNow, format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Download, Mic, Activity, Loader2, StopCircle, Pause, Play } from 'lucide-react';
+import { 
+  CheckCircle, XCircle, Clock, Download, Mic, Activity, Loader2, StopCircle, 
+  Pause, Play, Database, HardDrive, Cpu, AlertCircle, Trash2
+} from 'lucide-react';
 import { AddAccountForm } from '../components/AddAccountForm';
 import React from 'react';
+
+// ─── Queue Section (Merged from QueueView) ───────────────────────────────────
+
+const QueueStatsSection = ({
+  title,
+  metrics,
+  icon,
+  queueName,
+}: {
+  title: string;
+  metrics: QueueMetrics;
+  icon: React.ReactNode;
+  queueName: string;
+}) => {
+  const queryClient = useQueryClient();
+  const deleteMutation = useMutation({
+    mutationFn: ({ id }: { id: string }) => deleteJob(queueName, id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['queue-status'] });
+    },
+  });
+  
+  const stats = [
+    { label: 'Active', value: metrics.counts.active, color: '#3b82f6', icon: <Activity size={14} /> },
+    { label: 'Waiting', value: metrics.counts.waiting, color: '#f59e0b', icon: <Clock size={14} /> },
+    { label: 'Failed', value: metrics.counts.failed, color: '#ef4444', icon: <AlertCircle size={14} /> },
+  ];
+
+  if (metrics.counts.active === 0 && metrics.counts.waiting === 0 && metrics.counts.failed === 0) return null;
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+        {icon} <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{title}</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+        {stats.map(s => (
+          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
+             <span style={{ color: s.color }}>{s.icon}</span>
+             <span style={{ fontWeight: 600 }}>{s.value}</span>
+             <span style={{ opacity: 0.6 }}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {metrics.failed && metrics.failed.length > 0 && (
+        <div style={{ marginTop: '0.5rem' }}>
+          <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', marginBottom: '0.5rem' }}>Recent Failures:</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {metrics.failed.slice(0, 3).map(job => (
+              <div key={job.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(239, 68, 68, 0.05)', padding: '0.4rem', borderRadius: 4, fontSize: '0.75rem' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80%', opacity: 0.8 }}>
+                   {job.failedReason || 'Unknown error'}
+                </span>
+                <button 
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     deleteMutation.mutate({ id: job.id });
+                   }}
+                   style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: '2px' }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Active Jobs ─────────────────────────────────────────────────────────────
 
 const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], username: string }) => {
   const queryClient = useQueryClient();
@@ -23,7 +103,7 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
     }
   });
 
-  const isPaused = jobs.some(j => j.progressData?.step?.includes('PAUSED')) || false; // Backend doesn't report it directly in activeJobs usually, but checking summary too.
+  const isPaused = jobs.some(j => j.progressData?.step?.includes('PAUSED')) || false;
 
   const pauseMutation = useMutation({
     mutationFn: () => pauseIngestion(username),
@@ -115,31 +195,32 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
       {jobs.map((job) => {
         const isIngestion = job.name === 'start-ingestion';
         const isDownload = job.name === 'process-media';
-        const isCompute = job.name === 'compute-video' || job.name === 'compute-image';
+        const isCompute = job.name === 'compute-video' || job.name === 'compute-image' || job.name === 'profile-sync-batch' || job.name === 'transcribe-batch' || job.name === 'optimize-batch' || job.name === 'visualize-batch';
 
         let label = 'Processing...';
-        if (isIngestion) label = `Scraping & Ingesting: ${job.data?.step || 'Waiting for actor...'}`;
+        if (isIngestion) label = `Scraping & Ingesting: ${job.progressData?.step || 'Waiting for actor...'}`;
         if (isDownload) label = `Downloading Media: ${job.data?.mediaId?.slice(0, 8) || '...'}`;
-        if (isCompute)
-          label = `Optimizing / Transcribing: ${job.data?.step || (job.data?.mediaId?.slice(0, 8) || '...')}`;
+        if (isCompute) label = `${job.progressData?.step || 'Computing...'}`;
 
         return (
           <div key={job.id} style={{ marginBottom: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontWeight: 600 }}>{label}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600 }}>{label}</span>
+                    <span>
+                    {typeof job.progress === 'number' && job.progress > 0 ? (
+                    `${job.progress}%`
+                    ) : (
+                    <Loader2 size={14} className="spin" />
+                    )}
+                </span>
+                </div>
                 {job.progressData?.currentItem && (
                   <span style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '2px' }}>
                     @{job.progressData.currentItem.username} · {job.progressData.currentItem.postedAt} · {job.progressData.currentItem.type}
                   </span>
                 )}
               </div>
-              <span>
-                {typeof job.progress === 'number' && job.progress > 0 ? (
-                  `${job.progress}%`
-                ) : (
-                  <Loader2 size={14} className="spin" />
-                )}
-              </span>
             {typeof job.progress === 'number' && job.progress > 0 && (
               <div
                 style={{
@@ -147,6 +228,7 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
                   background: 'rgba(255,255,255,0.1)',
                   borderRadius: 99,
                   overflow: 'hidden',
+                  marginTop: '0.4rem'
                 }}
               >
                 <div
@@ -305,9 +387,17 @@ const PostRow = ({ post }: { post: PostProgress }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const ProgressView = () => {
+  const queryClient = useQueryClient();
   const { data: accounts } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
   const location = useLocation();
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [showQueues, setShowQueues] = React.useState(false);
+
+  const { data: queueStatus } = useQuery({
+    queryKey: ['queue-status'],
+    queryFn: getQueueStatus,
+    refetchInterval: 5000,
+  });
 
   // Parse username from URL: /progress?username=karenexplora
   React.useEffect(() => {
@@ -350,27 +440,56 @@ export const ProgressView = () => {
       >
         <h2 style={{ margin: 0 }}>Ingestion Progress</h2>
 
-        {/* Account selector */}
-        <select
-          value={selected ?? ''}
-          onChange={(e) => setSelected(e.target.value)}
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            color: 'white',
-            padding: '0.4rem 0.75rem',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: '0.9rem',
-          }}
-        >
-          {(accounts ?? []).map((a) => (
-            <option key={a.username} value={a.username}>
-              @{a.username}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button
+            onClick={() => setShowQueues(!showQueues)}
+            className="action-btn"
+            style={{
+              background: showQueues ? '#3b82f6' : 'var(--bg-card)',
+              color: 'white',
+              fontSize: '0.85rem',
+              height: '34px',
+              padding: '0 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <Activity size={16} />
+            Queues
+          </button>
+
+          {/* Account selector */}
+          <select
+            value={selected ?? ''}
+            onChange={(e) => setSelected(e.target.value)}
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              color: 'white',
+              padding: '0.4rem 0.75rem',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              height: '34px'
+            }}
+          >
+            {(accounts ?? []).map((a) => (
+              <option key={a.username} value={a.username}>
+                @{a.username}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {showQueues && queueStatus && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+           <QueueStatsSection title="Ingestion" metrics={queueStatus.ingestion} icon={<Database size={18} />} queueName="ingestion" />
+           <QueueStatsSection title="Downloads" metrics={queueStatus.download} icon={<HardDrive size={18} />} queueName="download" />
+           <QueueStatsSection title="Compute" metrics={queueStatus.compute} icon={<Cpu size={18} />} queueName="compute" />
+        </div>
+      )}
 
       {isLoading && <div className="loading">Loading progress…</div>}
 
@@ -484,7 +603,7 @@ export const ProgressView = () => {
                 borderTop: '1px solid var(--border)',
               }}
             >
-              Showing last 200 posts · Auto-refreshes every 8s
+              Showing last 200 posts · Auto-refreshes every 5s
               {dataUpdatedAt > 0 &&
                 ` · Last updated ${formatDistanceToNow(new Date(dataUpdatedAt))} ago`}
             </div>
@@ -494,5 +613,3 @@ export const ProgressView = () => {
     </div>
   );
 };
-
-// ProgressView components
