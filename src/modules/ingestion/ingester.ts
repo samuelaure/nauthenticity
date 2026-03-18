@@ -261,7 +261,7 @@ export const ingestProfile = async (
           if (!mediaInDb.storageUrl.startsWith('/content/')) {
             mediaInDb = await prisma.media.update({
               where: { id: mediaInDb.id },
-              data: { storageUrl: media.url },
+              data: { storageUrl: media.url, url: media.url },
             });
           }
         } else {
@@ -270,6 +270,7 @@ export const ingestProfile = async (
             data: {
               postId: post.id,
               type: media.type,
+              url: media.url,
               storageUrl: media.url,
               index: i,
             },

@@ -52,6 +52,7 @@ model ScrapingRun {
   rawData     Json?    // Optional: store full JSON result for 24h fallback
   status      String   @default("completed") // "pending", "completed", "failed"
   phase       String   @default("finished")  // "scraping", "downloading", "optimizing", "visualizing", "profiling", "transcribing", "finished"
+  isPaused    Boolean  @default(false)
   
   posts       Post[]
   
@@ -63,6 +64,7 @@ model Media {
   postId      String
   post        Post     @relation(fields: [postId], references: [id])
   type        String   // "video" | "image"
+  url         String   // Original source URL (needed for resume)
   storageUrl    String   // Local path or R2 URL
   thumbnailUrl  String?  // Local path for fast preview
   duration      Float?

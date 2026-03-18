@@ -4,13 +4,15 @@ import {
   getAccountProgress,
   getAccounts,
   abortIngestion,
+  pauseIngestion,
+  resumeIngestion,
   type AccountProgress,
   type PostProgress,
 } from '../lib/api';
 import { formatDistanceToNow, format } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Download, Mic, Activity, Loader2, StopCircle } from 'lucide-react';
-
-// ─── Active Jobs ─────────────────────────────────────────────────────────────
+import { CheckCircle, XCircle, Clock, Download, Mic, Activity, Loader2, StopCircle, Pause, Play } from 'lucide-react';
+import { AddAccountForm } from '../components/AddAccountForm';
+import React from 'react';
 
 const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], username: string }) => {
   const queryClient = useQueryClient();
@@ -19,6 +21,18 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['progress', username] });
     }
+  });
+
+  const isPaused = jobs.some(j => j.progressData?.step?.includes('PAUSED')) || false; // Backend doesn't report it directly in activeJobs usually, but checking summary too.
+
+  const pauseMutation = useMutation({
+    mutationFn: () => pauseIngestion(username),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['progress', username] })
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: () => resumeIngestion(username),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['progress', username] })
   });
 
   if (!jobs || jobs.length === 0) return null;
@@ -52,27 +66,50 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
           <h3 style={{ margin: 0, fontSize: '1rem' }}>Active Tasks</h3>
         </div>
 
-        <button
-          onClick={handleAbort}
-          disabled={abortMutation.isPending}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            background: '#ef4444',
-            color: 'white',
-            border: 'none',
-            padding: '0.4rem 0.75rem',
-            borderRadius: 6,
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            opacity: abortMutation.isPending ? 0.6 : 1,
-          }}
-        >
-          {abortMutation.isPending ? <Loader2 size={14} className="spin" /> : <StopCircle size={14} />}
-          Abort All Tasks
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={() => isPaused ? resumeMutation.mutate() : pauseMutation.mutate()}
+            disabled={pauseMutation.isPending || resumeMutation.isPending}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              background: isPaused ? '#10b981' : '#f59e0b',
+              color: 'white',
+              border: 'none',
+              padding: '0.4rem 0.75rem',
+              borderRadius: 6,
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {isPaused ? <Play size={14} /> : <Pause size={14} />}
+            {isPaused ? 'Resume' : 'Soft Pause'}
+          </button>
+          
+          <button
+            onClick={handleAbort}
+            disabled={abortMutation.isPending}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              background: '#ef4444',
+              color: 'white',
+              border: 'none',
+              padding: '0.4rem 0.75rem',
+              borderRadius: 6,
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              opacity: abortMutation.isPending ? 0.6 : 1,
+            }}
+          >
+            {abortMutation.isPending ? <Loader2 size={14} className="spin" /> : <StopCircle size={14} />}
+            Abort All
+          </button>
+        </div>
       </div>
 
       {jobs.map((job) => {
@@ -88,15 +125,14 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
 
         return (
           <div key={job.id} style={{ marginBottom: '1rem' }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '0.4rem',
-                fontSize: '0.85rem',
-              }}
-            >
-              <span style={{ fontWeight: 600 }}>{label}</span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: 600 }}>{label}</span>
+                {job.progressData?.currentItem && (
+                  <span style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '2px' }}>
+                    @{job.progressData.currentItem.username} · {job.progressData.currentItem.postedAt} · {job.progressData.currentItem.type}
+                  </span>
+                )}
+              </div>
               <span>
                 {typeof job.progress === 'number' && job.progress > 0 ? (
                   `${job.progress}%`
@@ -104,7 +140,6 @@ const ActiveJobs = ({ jobs, username }: { jobs: AccountProgress['activeJobs'], u
                   <Loader2 size={14} className="spin" />
                 )}
               </span>
-            </div>
             {typeof job.progress === 'number' && job.progress > 0 && (
               <div
                 style={{
@@ -298,8 +333,10 @@ export const ProgressView = () => {
     queryKey: ['progress', selected],
     queryFn: () => getAccountProgress(selected!),
     enabled: !!selected,
-    refetchInterval: 8000, // Refresh every 8s
+    refetchInterval: 5000, // Refresh every 5s for smoother progress
   });
+
+  const isIdle = !isLoading && progress?.activeJobs.length === 0;
 
   return (
     <div className="fade-in" style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -342,8 +379,42 @@ export const ProgressView = () => {
           {/* Summary cards */}
           <SummaryCards summary={progress.summary} />
 
-          {/* Active Jobs */}
-          <ActiveJobs jobs={progress.activeJobs} username={selected!} />
+          {/* Active Jobs or Idle State */}
+          {isIdle ? (
+            <div style={{ 
+              background: 'var(--bg-card)', 
+              border: '1px solid var(--border)', 
+              borderRadius: 10, 
+              padding: '2rem', 
+              textAlign: 'center',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1rem'
+            }}>
+              <div style={{ color: 'var(--text-secondary)' }}>
+                <CheckCircle size={48} style={{ marginBottom: '0.5rem', color: '#10b981', opacity: 0.5 }} />
+                <p style={{ margin: 0, fontWeight: 600, color: 'white' }}>No Active Processes</p>
+                <p style={{ margin: 0, fontSize: '0.9rem' }}>Everything is up to date for @{selected}.</p>
+              </div>
+              <div style={{ width: '100%', maxWidth: '500px', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
+                <p style={{ fontSize: '0.85rem', marginBottom: '1rem', fontWeight: 600 }}>Start New Sync:</p>
+                <AddAccountForm initialUsername={selected!} />
+              </div>
+            </div>
+          ) : (
+            <ActiveJobs 
+              jobs={progress.activeJobs.map(j => ({
+                ...j,
+                progressData: {
+                   ...j.progressData,
+                   step: progress.summary.isPaused ? '(PAUSED) ' + (j.progressData?.step || '') : j.progressData?.step
+                }
+              }))} 
+              username={selected!} 
+            />
+          )}
 
           {/* Progress bars */}
           <div
@@ -424,5 +495,4 @@ export const ProgressView = () => {
   );
 };
 
-// Need React in scope for hooks
-import React from 'react';
+// ProgressView components

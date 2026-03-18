@@ -66,9 +66,18 @@ export const downloadWorker = new Worker(
         );
 
         try {
+          // Soft Stop Check
+          if (runId) {
+            const run = await prisma.scrapingRun.findUnique({ where: { id: runId } });
+            if (run?.isPaused) {
+              logger.info(`[DownloadWorker] Run ${runId} is PAUSED. Skipping item processing.`);
+              return { paused: true };
+            }
+          }
+
           if (!fs.existsSync(finalPath)) {
             // 1. Download to temp
-            logger.info(`[DownloadWorker] Fetching ${url}`);
+            logger.info(`[DownloadWorker] Fetching ${url} for @${username}`);
             const response = await fetch(url, {
               headers: {
                 'User-Agent':
@@ -80,36 +89,37 @@ export const downloadWorker = new Worker(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const writeStream = createWriteStream(tempFilePath);
             const totalSize = Number(response.headers.get('content-length')) || 0;
-            let downloaded = 0;
+            let downloadedBytes = 0;
 
             if (response.body) {
               const reader = response.body.getReader();
               while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                downloaded += value.length;
+                downloadedBytes += value.length;
                 writeStream.write(value);
                 
                 if (totalSize > 0) {
-                  const progress = Math.round((downloaded / totalSize) * 100);
+                  const progress = Math.round((downloadedBytes / totalSize) * 100);
                   await job.updateProgress({ 
                     progress, 
                     step: `Downloading...`,
                     mediaId,
-                    postId 
+                    postId,
+                    currentItem: { username, type, postedAt: '(downloading)' }
                   });
                 }
               }
               writeStream.end();
             }
 
-          // 2. Atomic rename to final path (prevents partial reads by other components)
+          // 2. Atomic rename to final path
           atomicMove(tempFilePath, finalPath);
         } else {
           logger.info(`[DownloadWorker] File already exists at final path, skipping download.`);
         }
 
-          // 3. Update DB (for both image and video, it is now local)
+          // 3. Update DB
           await prisma.media.update({
             where: { id: mediaId },
             data: { storageUrl: publicUrl },
@@ -117,6 +127,10 @@ export const downloadWorker = new Worker(
 
           // 4. Check if we should trigger next phase (Optimizing)
           if (runId) {
+            // Re-check pause before transitioning
+            const run = await prisma.scrapingRun.findUnique({ where: { id: runId } });
+            if (run?.isPaused) return { paused: true };
+
             const pendingCount = await prisma.media.count({
               where: {
                 post: { runId: runId },
@@ -132,10 +146,7 @@ export const downloadWorker = new Worker(
                 data: { phase: 'optimizing' },
               });
 
-              // Trigger Batch Optimization for the entire run
               await computeQueue.add('optimize-batch', { runId, username });
-            } else {
-              logger.info(`[DownloadWorker] Run ${runId} has ${pendingCount} downloads remaining.`);
             }
           }
 

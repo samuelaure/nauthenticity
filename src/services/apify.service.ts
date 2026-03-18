@@ -178,20 +178,21 @@ export const runUniversalInstagramScraper = async (
   username: string,
   maxPosts = 10,
   onStatus?: (message: string) => Promise<void>,
+  mode: 'FEED' | 'PROFILE' = 'FEED',
 ): Promise<{ profile: NauIGProfile; items: NauIGPost[]; runId: string; datasetId: string }> => {
   logger.info(
-    `[Apify] Starting universal scrape for ${username} (limit: ${maxPosts}) using actor ${config.apify.instagramUniversalActorId}...`,
+    `[Apify] Starting universal scrape (${mode}) for ${username} (limit: ${maxPosts})...`,
   );
 
   const { items, run } = await withRetry(
     async () => {
-      if (onStatus) await onStatus('Waiting for Apify actor to start and fetch initial data...');
+      if (onStatus) await onStatus(`Waiting for Apify actor to start (${mode})...`);
       
       const actorRun = await client.actor(config.apify.instagramUniversalActorId).call(
         {
-          mode: 'FEED',
+          mode,
           usernames: [username],
-          limit: maxPosts,
+          limit: mode === 'PROFILE' ? 1 : maxPosts,
           sortDirection: 'desc',
           proxyConfiguration: { useApifyProxy: true },
         },

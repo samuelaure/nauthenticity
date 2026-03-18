@@ -164,6 +164,8 @@ export interface AccountProgress {
     transcribedPosts: number;
     transcriptPct: number;
     totalTranscripts: number;
+    phase: string;
+    isPaused: boolean;
   };
   activeJobs: Array<{
     id: string;
@@ -171,6 +173,14 @@ export interface AccountProgress {
     progress: number;
     data: any;
     timestamp: number;
+    progressData?: {
+      step?: string;
+      currentItem?: {
+        username: string;
+        postedAt: string;
+        type: string;
+      };
+    };
   }>;
   posts: PostProgress[];
 }
@@ -182,5 +192,15 @@ export const getAccountProgress = async (username: string) => {
 
 export const abortIngestion = async (username: string) => {
   const { data } = await api.post('/abort', { username });
+  return data;
+};
+
+export const pauseIngestion = async (username: string) => {
+  const { data } = await api.post('/pause', { username });
+  return data;
+};
+
+export const resumeIngestion = async (username: string) => {
+  const { data } = await api.post('/resume', { username });
   return data;
 };

@@ -1,9 +1,9 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { getAccounts, ingestAccount, getMediaUrl, API_URL } from '../lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { getAccounts, getMediaUrl, API_URL } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Image as ImageIcon } from 'lucide-react';
+import { Image as ImageIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { useState } from 'react';
+import { AddAccountForm } from '../components/AddAccountForm';
 
 export const AccountsList = () => {
   const navigate = useNavigate();
@@ -13,22 +13,6 @@ export const AccountsList = () => {
     isError,
     error,
   } = useQuery({ queryKey: ['accounts'], queryFn: getAccounts });
-  const [newUsername, setNewUsername] = useState('');
-  const [newLimit, setNewLimit] = useState<number>(20);
-
-  const ingestMutation = useMutation({
-    mutationFn: ingestAccount,
-    onSuccess: (_, variables) => {
-      setNewUsername('');
-      // Redirect to progress view for this account
-      navigate(`/progress?username=${variables.username}`);
-    },
-  });
-
-  const handleIngest = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newUsername) ingestMutation.mutate({ username: newUsername, limit: newLimit });
-  };
 
   if (isLoading) return <div>Loading...</div>;
   if (isError)
@@ -49,40 +33,7 @@ export const AccountsList = () => {
         }}
       >
         <h2 style={{ borderBottom: 'none' }}>Tracked Accounts</h2>
-        <form onSubmit={handleIngest} style={{ display: 'flex', gap: '0.5rem' }}>
-          <input
-            type="text"
-            value={newUsername}
-            onChange={(e) => setNewUsername(e.target.value)}
-            placeholder="Instagram Username"
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              color: 'white',
-              padding: '0.5rem',
-              borderRadius: '6px',
-            }}
-          />
-          <input
-            type="number"
-            value={newLimit}
-            onChange={(e) => setNewLimit(Number(e.target.value))}
-            min={1}
-            max={10000}
-            title="Max Posts to Scrape"
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              color: 'white',
-              padding: '0.5rem',
-              borderRadius: '6px',
-              width: '80px',
-            }}
-          />
-          <button type="submit" className="action-btn" disabled={ingestMutation.isPending}>
-            {ingestMutation.isPending ? '...' : <Plus size={20} />}
-          </button>
-        </form>
+        <AddAccountForm />
       </div>
 
       <div className="accounts-grid">

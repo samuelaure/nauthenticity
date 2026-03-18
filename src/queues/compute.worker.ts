@@ -9,6 +9,7 @@ import { transcribeAudio } from '../services/transcription.service';
 import { logContextStorage } from '../utils/context';
 import { computeQueue } from './compute.queue';
 import { downloadQueue } from './download.queue';
+import { getProfileInfo } from '../services/apify.service';
 
 interface ComputeMediaData {
   postId: string;
@@ -114,22 +115,51 @@ export const computeWorker = new Worker(
         throw new Error('Compute is paused');
       }
 
+      const checkPaused = async (runId: string) => {
+        const run = await prisma.scrapingRun.findUnique({ where: { id: runId } });
+        return run?.isPaused || false;
+      };
+
       if (job.name === 'optimize-batch') {
         const { runId, username } = job.data as { runId: string; username: string };
         logger.info(`[ComputeWorker] Phase: Optimizing Run ${runId}`);
-        const mediaItems = await prisma.media.findMany({ where: { post: { runId } } });
+        const mediaItems = await prisma.media.findMany({ 
+          where: { post: { runId } },
+          include: { post: true }
+        });
 
         for (let i = 0; i < mediaItems.length; i++) {
+          if (await checkPaused(runId)) {
+            logger.info(`[ComputeWorker] Run ${runId} PAUSED during Optimization. Stopping batch.`);
+            return { paused: true };
+          }
+
           const m = mediaItems[i];
-          await job.updateProgress({ progress: Math.round((i / mediaItems.length) * 100), step: `Optimizing ${i + 1}/${mediaItems.length}` });
+          const currentItem = {
+            username: m.post.username,
+            postedAt: m.post.postedAt.toISOString().split('T')[0],
+            type: m.type
+          };
+
+          await job.updateProgress({ 
+            progress: Math.round((i / mediaItems.length) * 100), 
+            step: `Optimizing ${i + 1}/${mediaItems.length}`,
+            currentItem
+          });
+
           if (m.type === 'video' && m.storageUrl.startsWith('/content/')) {
             const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
             if (fs.existsSync(filePath)) {
-              logger.info(`[ComputeWorker] Optimizing ${m.id} (${i + 1}/${mediaItems.length})`);
+               // Idempotency check: we don't have an 'isOptimized' flag easily, 
+               // but we can check if it's already a small file or just trust optimizeMedia to be safe.
+               // For now, optimizeMedia will just do the work.
+              logger.info(`[ComputeWorker] Optimizing ${m.id} for @${currentItem.username}`);
               await optimizeMedia(m.id, filePath);
             }
           }
         }
+
+        if (await checkPaused(runId)) return { paused: true };
 
         await prisma.scrapingRun.update({ where: { id: runId }, data: { phase: 'visualizing' } });
         await computeQueue.add('visualize-batch', { runId, username });
@@ -137,21 +167,47 @@ export const computeWorker = new Worker(
       } else if (job.name === 'visualize-batch') {
         const { runId, username } = job.data as { runId: string; username: string };
         logger.info(`[ComputeWorker] Phase: Visualizing Run ${runId}`);
-        const mediaItems = await prisma.media.findMany({ where: { post: { runId } } });
+        const mediaItems = await prisma.media.findMany({ 
+          where: { post: { runId } },
+          include: { post: true }
+        });
         const userDir = path.join(config.paths.storage, username, 'posts');
         ensureDir(userDir);
 
         for (let i = 0; i < mediaItems.length; i++) {
+          if (await checkPaused(runId)) {
+            logger.info(`[ComputeWorker] Run ${runId} PAUSED during Visualization. Stopping batch.`);
+            return { paused: true };
+          }
           const m = mediaItems[i];
-          await job.updateProgress({ progress: Math.round((i / mediaItems.length) * 100), step: `Thumbnails ${i + 1}/${mediaItems.length}` });
+          
+          if (m.thumbnailUrl) {
+             logger.info(`[ComputeWorker] Thumbnail already exists for ${m.id}, skipping.`);
+             continue;
+          }
+
+          const currentItem = {
+            username: m.post.username,
+            postedAt: m.post.postedAt.toISOString().split('T')[0],
+            type: m.type
+          };
+
+          await job.updateProgress({ 
+            progress: Math.round((i / mediaItems.length) * 100), 
+            step: `Thumbnails ${i + 1}/${mediaItems.length}`,
+            currentItem
+          });
+
           if (m.storageUrl.startsWith('/content/')) {
             const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
             if (fs.existsSync(filePath)) {
-              logger.info(`[ComputeWorker] Thumbnail for ${m.id} (${i+1}/${mediaItems.length})`);
+              logger.info(`[ComputeWorker] Thumbnail for ${m.id} (@${currentItem.username})`);
               await generateThumbnail(m.id, filePath, userDir, username, m.type);
             }
           }
         }
+
+        if (await checkPaused(runId)) return { paused: true };
 
         await prisma.scrapingRun.update({ where: { id: runId }, data: { phase: 'profiling' } });
         await computeQueue.add('profile-sync-batch', { runId, username });
@@ -160,22 +216,62 @@ export const computeWorker = new Worker(
         const { runId, username: contextUsername } = job.data as { runId: string; username: string };
         logger.info(`[ComputeWorker] Phase: Profiling Run ${runId}`);
         
-        const account = await prisma.account.findUnique({ where: { username: contextUsername } });
-        if (account?.profileImageUrl) {
-           await downloadQueue.add('process-profile-image', { username: contextUsername, url: account.profileImageUrl, contextUsername });
+        if (await checkPaused(runId)) return { paused: true };
+
+        // 1. Sync Main Profile via Actor (Get high-res)
+        try {
+          logger.info(`[ComputeWorker] Fetching fresh profile info for ${contextUsername}`);
+          const profile = await getProfileInfo(contextUsername);
+          if (profile) {
+            await prisma.account.update({
+              where: { username: contextUsername },
+              data: {
+                profileImageUrl: profile.profilePicUrlHD || profile.profilePicUrl,
+              }
+            });
+            // Queue download of the new high-res image
+            await downloadQueue.add('process-profile-image', { 
+              username: contextUsername, 
+              url: profile.profilePicUrlHD || profile.profilePicUrl, 
+              contextUsername 
+            });
+          }
+        } catch (e) {
+          logger.warn(`[ComputeWorker] Failed to sync main profile for ${contextUsername}: ${e}`);
         }
 
-        const posts = await prisma.post.findMany({ where: { runId }, select: { collaborators: true } });
+        // 2. Sync Collaborators
+        const posts = await prisma.post.findMany({ where: { runId }, select: { username: true, postedAt: true, collaborators: true } });
         const collabs = new Set<string>();
-        for (const p of posts) {
+        for (let i = 0; i < posts.length; i++) {
+          if (await checkPaused(runId)) return { paused: true };
+          const p = posts[i];
+
+          await job.updateProgress({ 
+            progress: Math.round((i / posts.length) * 100), 
+            step: `Identifying Collaborators ${i + 1}/${posts.length}`,
+            currentItem: { username: p.username, postedAt: p.postedAt.toISOString().split('T')[0], type: 'profile' }
+          });
+
           const cs = p.collaborators as any[];
           if (Array.isArray(cs)) cs.forEach(c => c.username && c.profilePicUrl && collabs.add(JSON.stringify({ u: c.username, p: c.profilePicUrl })));
         }
 
-        for (const cStr of collabs) {
-          const { u, p } = JSON.parse(cStr);
+        const collabList = Array.from(collabs);
+        for (let i = 0; i < collabList.length; i++) {
+          if (await checkPaused(runId)) return { paused: true };
+          const { u, p } = JSON.parse(collabList[i]);
+          
+          await job.updateProgress({ 
+            progress: Math.round((i / collabList.length) * 100), 
+            step: `Syncing Collaborator ${i + 1}/${collabList.length}`,
+            currentItem: { username: u, postedAt: '(collab)', type: 'profile' }
+          });
+
           await downloadQueue.add('process-profile-image', { username: u, url: p, contextUsername });
         }
+
+        if (await checkPaused(runId)) return { paused: true };
 
         await prisma.scrapingRun.update({ where: { id: runId }, data: { phase: 'transcribing' } });
         await computeQueue.add('transcribe-batch', { runId, username: contextUsername });
@@ -183,19 +279,45 @@ export const computeWorker = new Worker(
       } else if (job.name === 'transcribe-batch') {
         const { runId, username } = job.data as { runId: string; username: string };
         logger.info(`[ComputeWorker] Phase: Transcribing Run ${runId}`);
-        const mediaItems = await prisma.media.findMany({ where: { post: { runId }, type: 'video' } });
+        const mediaItems = await prisma.media.findMany({ 
+          where: { post: { runId }, type: 'video' },
+          include: { post: true, transcript: true }
+        });
 
         for (let i = 0; i < mediaItems.length; i++) {
+          if (await checkPaused(runId)) {
+            logger.info(`[ComputeWorker] Run ${runId} PAUSED during Transcription. Stopping batch.`);
+            return { paused: true };
+          }
           const m = mediaItems[i];
-          await job.updateProgress({ progress: Math.round((i / mediaItems.length) * 100), step: `Transcribing ${i + 1}/${mediaItems.length}` });
+
+          if (m.transcript) {
+            logger.info(`[ComputeWorker] Transcript already exists for ${m.id}, skipping.`);
+            continue;
+          }
+
+          const currentItem = {
+            username: m.post.username,
+            postedAt: m.post.postedAt.toISOString().split('T')[0],
+            type: m.type
+          };
+
+          await job.updateProgress({ 
+            progress: Math.round((i / mediaItems.length) * 100), 
+            step: `Transcribing ${i + 1}/${mediaItems.length}`,
+            currentItem
+          });
+
           if (m.storageUrl.startsWith('/content/')) {
             const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
             if (fs.existsSync(filePath)) {
-              logger.info(`[ComputeWorker] Transcribing ${m.id} (${i+1}/${mediaItems.length})`);
+              logger.info(`[ComputeWorker] Transcribing ${m.id} (@${currentItem.username})`);
               await transcribeVideo(m.id, m.postId, filePath);
             }
           }
         }
+        
+        if (await checkPaused(runId)) return { paused: true };
 
         await prisma.scrapingRun.update({ where: { id: runId }, data: { phase: 'finished', status: 'completed' } });
       }

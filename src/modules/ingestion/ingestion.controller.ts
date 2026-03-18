@@ -120,6 +120,80 @@ export const ingestionController = async (fastify: FastifyInstance) => {
     }
   );
 
+  fastify.post(
+    '/pause',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { username } = request.body as { username: string };
+      if (!username) return reply.status(400).send({ error: 'Username is required' });
+
+      const run = await prisma.scrapingRun.findFirst({
+        where: { username, status: 'pending' },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (!run) return reply.status(404).send({ error: 'No active run for this user' });
+
+      await prisma.scrapingRun.update({
+        where: { id: run.id },
+        data: { isPaused: true },
+      });
+
+      logger.info(`[IngestionController] Paused run ${run.id} for ${username}`);
+      return reply.send({ status: 'paused' });
+    }
+  );
+
+  fastify.post(
+    '/resume',
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { username } = request.body as { username: string };
+      if (!username) return reply.status(400).send({ error: 'Username is required' });
+
+      const run = await prisma.scrapingRun.findFirst({
+        where: { username, status: 'pending' },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (!run) return reply.status(404).send({ error: 'No active run for this user' });
+
+      await prisma.scrapingRun.update({
+        where: { id: run.id },
+        data: { isPaused: false },
+      });
+
+      // Resume by re-injecting the batch job for the current phase
+      const { phase, id: runId } = run;
+      logger.info(`[IngestionController] Resuming run ${runId} (@${username}) in phase: ${phase}`);
+
+      if (phase === 'downloading') {
+         // Re-enqueue all pending media downloads
+         const pendingMedia = await prisma.media.findMany({
+            where: { post: { runId }, storageUrl: { not: { startsWith: '/content/' } } }
+         });
+         for (const m of pendingMedia) {
+            await downloadQueue.add('process-media', {
+               postId: m.postId,
+               mediaId: m.id,
+               runId,
+               url: m.url,
+               type: m.type,
+               username
+            });
+         }
+      } else if (phase === 'optimizing') {
+         await computeQueue.add('optimize-batch', { runId, username });
+      } else if (phase === 'visualizing') {
+         await computeQueue.add('visualize-batch', { runId, username });
+      } else if (phase === 'profiling') {
+         await computeQueue.add('profile-sync-batch', { runId, username });
+      } else if (phase === 'transcribing') {
+         await computeQueue.add('transcribe-batch', { runId, username });
+      }
+
+      return reply.send({ status: 'resumed', phase });
+    }
+  );
+
   fastify.get('/ingest/status/:jobId', async (request: FastifyRequest, reply: FastifyReply) => {
     const { jobId } = request.params as { jobId: string };
     const job = await ingestionQueue.getJob(jobId);
