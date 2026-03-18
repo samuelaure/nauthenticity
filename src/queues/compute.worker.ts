@@ -1,4 +1,5 @@
 import { Worker, Job } from 'bullmq';
+
 import { config } from '../config';
 import { prisma } from '../db/prisma';
 import { logger } from '../utils/logger';
@@ -21,7 +22,8 @@ export type PipelineStepName =
   | 'visualize-batch'
   | 'profile-sync-batch'
   | 'optimize-batch'
-  | 'transcribe-batch';
+  | 'transcribe-batch'
+  | 'embed-batch';
 
 /** Ordered execution sequence. Modify this array to re-sort the pipeline. */
 const PIPELINE: PipelineStepName[] = [
@@ -29,6 +31,7 @@ const PIPELINE: PipelineStepName[] = [
   'profile-sync-batch',
   'optimize-batch',
   'transcribe-batch',
+  'embed-batch',
 ];
 
 /** Maps a pipeline step name to the DB phase label used in scrapingRun.phase */
@@ -37,6 +40,7 @@ export const PHASE_LABELS: Record<PipelineStepName, string> = {
   'profile-sync-batch': 'profiling',
   'optimize-batch': 'optimizing',
   'transcribe-batch': 'transcribing',
+  'embed-batch': 'embedding',
 };
 
 /** Returns the next step name in the pipeline, or null if this is the last step. */
@@ -160,8 +164,7 @@ const transcribeVideo = async (
         .save(audioPath);
     });
     const transcription = await transcribeAudio(audioPath);
-    // Cast via unknown first to satisfy Prisma's InputJsonValue type
-    const jsonPayload = transcription as unknown as import('@prisma/client').Prisma.InputJsonValue;
+    const jsonPayload = transcription as any; // Final fallback for pervasive type issue
     await prisma.transcript.upsert({
       where: { mediaId },
       update: { text: transcription.text, json: jsonPayload },
@@ -175,6 +178,33 @@ const transcribeVideo = async (
   } finally {
     if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
   }
+};
+
+const createEmbedding = async (text: string, transcriptId: string): Promise<void> => {
+  const { OpenAI } = await import('openai');
+  const openai = new OpenAI({ apiKey: config.openai.apiKey });
+
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-3-small',
+    input: text.replace(/\n/g, ' '),
+    encoding_format: 'float',
+  });
+
+  const embedding = response.data[0].embedding;
+
+  await prisma.$executeRaw`
+    INSERT INTO "Embedding" ("id", "transcriptId", "vector", "model", "createdAt")
+    VALUES (
+      gen_random_uuid(), 
+      ${transcriptId}, 
+      ${embedding}::vector, 
+      'text-embedding-3-small', 
+      NOW()
+    )
+    ON CONFLICT ("transcriptId") DO UPDATE SET
+      "vector" = ${embedding}::vector,
+      "createdAt" = NOW();
+  `;
 };
 
 // ---------------------------------------------------------------------------
@@ -411,6 +441,46 @@ const handleTranscribeBatch = async (
   }
 };
 
+const handleEmbedBatch = async (
+  job: Job,
+  runId: string,
+  _username: string,
+  checkPaused: PauseChecker,
+): Promise<{ paused: true } | void> => {
+  logger.info(`[ComputeWorker] Phase: Embedding Run ${runId}`);
+  const transcripts = await prisma.transcript.findMany({
+    where: { post: { runId }, embedding: { is: null } },
+    include: { post: true },
+  });
+
+  for (let i = 0; i < transcripts.length; i++) {
+    if (i % 50 === 0) {
+      if (await checkPaused(runId)) {
+        logger.info(`[ComputeWorker] Run ${runId} PAUSED during Embedding. Stopping batch.`);
+        return { paused: true };
+      }
+    }
+    const t = transcripts[i];
+
+    await job.updateProgress({
+      progress: Math.round((i / transcripts.length) * 100),
+      step: `Embedding ${i + 1}/${transcripts.length}`,
+      currentItem: {
+        username: t.post.username ?? 'unknown',
+        postedAt: t.post.postedAt.toISOString().split('T')[0],
+        type: 'embedding',
+      },
+    });
+
+    try {
+      logger.info(`[ComputeWorker] Generating embedding for transcript ${t.id}`);
+      await createEmbedding(t.text, t.id);
+    } catch (e) {
+      logger.error(`[ComputeWorker] Failed to embed transcript ${t.id}: ${e}`);
+    }
+  }
+};
+
 /** Dispatch table mapping each step name to its handler. */
 const STEP_HANDLERS: Record<
   PipelineStepName,
@@ -425,6 +495,7 @@ const STEP_HANDLERS: Record<
   'profile-sync-batch': handleProfileSyncBatch,
   'optimize-batch': handleOptimizeBatch,
   'transcribe-batch': handleTranscribeBatch,
+  'embed-batch': handleEmbedBatch,
 };
 
 // ---------------------------------------------------------------------------
@@ -468,3 +539,5 @@ export const computeWorker = new Worker(
 computeWorker.on('failed', (job, err) => {
   logger.error(`[ComputeWorker] Job ${job?.id} failed: ${err.message}`);
 });
+
+
