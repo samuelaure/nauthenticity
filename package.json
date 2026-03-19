@@ -39,7 +39,7 @@
     "@fastify/cors": "^11.2.0",
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/static": "^9.0.0",
-    "@prisma/client": "5.22.0",
+    "@prisma/client": "^5.22.0",
     "apify-client": "^2.22.0",
     "bullmq": "^5.67.2",
     "dotenv": "^17.2.3",

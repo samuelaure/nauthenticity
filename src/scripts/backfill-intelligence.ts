@@ -6,9 +6,9 @@ const backfill = async () => {
   logger.info('[Scripts] Starting intelligence extraction backfill...');
 
   const posts = await prisma.post.findMany({
-    where: { intelligence: null },
+    where: { intelligence: null } as any,
     include: { transcripts: { take: 1 } },
-  });
+  }) as any[];
 
   logger.info(`[Scripts] Found ${posts.length} posts needing strategy extraction.`);
 
