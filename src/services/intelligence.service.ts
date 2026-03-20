@@ -12,7 +12,9 @@ const IntelligenceSchema = z.object({
   hook: z.string().describe('The primary attention-grabbing opening of the content.'),
   pillars: z.array(z.string()).describe('The core themes or content pillars this post belongs to.'),
   cta: z.string().describe('The call to action provided in the content.'),
-  sentiment: z.enum(['educational', 'promotional', 'entertaining', 'personal']).describe('The primary tone of the post.'),
+  sentiment: z
+    .enum(['educational', 'promotional', 'entertaining', 'personal'])
+    .describe('The primary tone of the post.'),
   summary: z.string().describe('A concise 1nd or 2nd person summary of the strategy used.'),
 });
 
@@ -20,7 +22,7 @@ export type PostIntelligence = z.infer<typeof IntelligenceSchema>;
 
 export const extractPostIntelligence = async (
   caption: string,
-  transcript: string = ''
+  transcript: string = '',
 ): Promise<PostIntelligence> => {
   logger.info('[IntelligenceService] Extracting intelligence...');
 

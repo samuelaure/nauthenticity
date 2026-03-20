@@ -539,5 +539,3 @@ export const computeWorker = new Worker(
 computeWorker.on('failed', (job, err) => {
   logger.error(`[ComputeWorker] Job ${job?.id} failed: ${err.message}`);
 });
-
-

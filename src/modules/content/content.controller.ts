@@ -325,7 +325,11 @@ export const contentController = async (fastify: FastifyInstance) => {
   );
 
   fastify.post('/search', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { query, username, limit = 10 } = request.body as {
+    const {
+      query,
+      username,
+      limit = 10,
+    } = request.body as {
       query: string;
       username?: string;
       limit?: number;

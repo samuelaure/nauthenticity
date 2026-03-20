@@ -5,10 +5,10 @@ import { extractPostIntelligence } from '../services/intelligence.service';
 const backfill = async () => {
   logger.info('[Scripts] Starting intelligence extraction backfill...');
 
-  const posts = await prisma.post.findMany({
+  const posts = (await prisma.post.findMany({
     where: { intelligence: null } as any,
     include: { transcripts: { take: 1 } },
-  }) as any[];
+  })) as any[];
 
   logger.info(`[Scripts] Found ${posts.length} posts needing strategy extraction.`);
 
@@ -19,7 +19,7 @@ const backfill = async () => {
 
     try {
       logger.info(`${progress} Extracting intelligence for post ${p.id} (@${p.username})`);
-      
+
       const intelligence = await extractPostIntelligence(p.caption || '', transcriptText);
 
       await prisma.post.update({
