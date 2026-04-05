@@ -20,6 +20,7 @@ import { ingestionWorker } from './queues/ingestion.worker';
 import { ingestionController } from './modules/ingestion/ingestion.controller';
 import { contentController } from './modules/content/content.controller';
 import { analyticsController } from './modules/analytics/analytics.controller';
+import { proactiveController } from './modules/proactive/proactive.controller';
 
 const fastify = Fastify({
   logger: true,
@@ -94,6 +95,7 @@ fastify.setNotFoundHandler((request, reply) => {
 fastify.register(ingestionController, { prefix: '/api' });
 fastify.register(contentController, { prefix: '/api' });
 fastify.register(analyticsController, { prefix: '/api' });
+fastify.register(proactiveController, { prefix: '/api' });
 const start = async () => {
   try {
     // D2: Startup Readiness Check

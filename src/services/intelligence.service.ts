@@ -55,3 +55,49 @@ export const extractPostIntelligence = async (
   const rawJson = JSON.parse(content);
   return IntelligenceSchema.parse(rawJson);
 };
+
+const CommentSuggestionSchema = z.object({
+  comments: z.array(z.string()).length(2).describe('Exactly 2 comment suggestions.'),
+});
+
+export const generateProactiveComments = async (
+  postCaption: string,
+  brandTone: string,
+): Promise<string[]> => {
+  logger.info(`[IntelligenceService] Generating proactive comments...`);
+
+  const prompt = `
+    You are an expert social media manager acting on behalf of a specific brand.
+    Analyze this Instagram post caption:
+    """
+    ${postCaption}
+    """
+    
+    Given this Brand Tone/Strategy:
+    """
+    ${brandTone}
+    """
+
+    Generate exactly 2 unique comment options to post.
+    The comments MUST sound natural, authentic, and perfectly match the Brand Tone.
+    Return your answer strictly as a JSON object matching this schema:
+    { "comments": ["string1", "string2"] }
+  `.trim();
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o-2024-08-06',
+    messages: [
+      { role: 'system', content: 'You are a social media strategist.' },
+      { role: 'user', content: prompt },
+    ],
+    response_format: { type: 'json_object' },
+  });
+
+  const content = completion.choices[0].message.content;
+  if (!content) {
+    throw new Error('Empty response from OpenAI.');
+  }
+
+  const rawJson = JSON.parse(content);
+  return CommentSuggestionSchema.parse(rawJson).comments;
+};

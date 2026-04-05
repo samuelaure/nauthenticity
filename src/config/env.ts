@@ -10,6 +10,8 @@ const envSchema = z.object({
   APIFY_INSTAGRAM_UNIVERSAL_ACTOR_ID: z.string().default('samuelaure/nau-ig-actor'),
   OPENAI_API_KEY: z.string().min(1),
   TRANSCRIPTION_URL: z.string().url().optional(),
+  NAU_SERVICE_KEY: z.string().default('development_key'),
+  ZAZU_URL: z.string().default('http://zazu:3000'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -332,3 +332,52 @@ export const abortActorRun = async (runId: string) => {
     return false;
   }
 };
+
+export const runUniversalBatchInstagramScraper = async (
+  usernames: string[],
+  maxPosts = 10,
+  onStatus?: (message: string) => Promise<void>,
+  oldestPostDate?: string,
+): Promise<{ items: ApifyInstagramPost[]; runId: string; datasetId: string }> => {
+  logger.info(
+    `[Apify] Starting universal batch scrape for ${usernames.length} usernames (limit: ${maxPosts})...`,
+  );
+
+  const { items, run } = await withRetry(
+    async () => {
+      if (onStatus) await onStatus(`Waiting for Apify actor to start (FEED batch)...`);
+
+      const actorRun = await client.actor(config.apify.instagramUniversalActorId).call(
+        {
+          mode: 'FEED',
+          usernames,
+          limit: maxPosts,
+          sortDirection: 'desc',
+          proxyConfiguration: { useApifyProxy: true },
+          ...(oldestPostDate ? { oldestPostDate } : {}),
+        },
+        { waitSecs: 3600, memory: 1024 },
+      );
+
+      if (onStatus) await onStatus(`Run ID: ${actorRun.id}`);
+
+      if (actorRun.status !== 'SUCCEEDED') {
+        throw new Error(`Apify actor run status: ${actorRun.status}`);
+      }
+
+      const { items: datasetItems } = await client.dataset(actorRun.defaultDatasetId).listItems();
+      return { items: datasetItems as unknown as any[], run: actorRun };
+    },
+    { attempts: 3, delay: 5000, factor: 2 },
+  );
+
+  // Filter out profile objects (which lack shortcode) and map posts
+  const posts = items.filter((item) => !!item.shortcode) as NauIGPost[];
+  const mappedItems = posts.map(mapNauPostToApifyPost);
+
+  return {
+    items: mappedItems,
+    runId: run.id,
+    datasetId: run.defaultDatasetId,
+  };
+};

@@ -30,6 +30,7 @@ model Post {
 
   media           Media[]
   transcripts     Transcript[]
+  feedbacks       CommentFeedback[]
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -43,6 +44,7 @@ model Account {
   lastScrapedAt   DateTime @default(now())
   
   posts           Post[]
+  brandTargets    BrandTarget[]
 }
 
 model ScrapingRun {
@@ -99,4 +101,41 @@ model Embedding {
   vector       Unsupported("vector(1536)")
   model        String     @default("text-embedding-3-small")
   createdAt    DateTime   @default(now())
+}
+
+model BrandConfig {
+  id          String   @id @default(uuid())
+  userId      String   // Links to the user on the platform
+  brandName   String
+  tonePrompt  String   @db.Text
+  isActive    Boolean  @default(true)
+  
+  targets     BrandTarget[]
+  feedbacks   CommentFeedback[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BrandTarget {
+  id           String       @id @default(uuid())
+  brandId      String
+  brand        BrandConfig  @relation(fields: [brandId], references: [id])
+  username     String
+  account      Account      @relation(fields: [username], references: [username])
+  
+  createdAt    DateTime @default(now())
+
+  @@unique([brandId, username])
+}
+
+model CommentFeedback {
+  id           String       @id @default(uuid())
+  brandId      String
+  brand        BrandConfig  @relation(fields: [brandId], references: [id])
+  postId       String
+  post         Post         @relation(fields: [postId], references: [id])
+  commentText  String       @db.Text
+  isEdited     Boolean      @default(false)
+  sentAt       DateTime     @default(now())
 }

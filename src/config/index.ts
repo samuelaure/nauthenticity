@@ -17,6 +17,10 @@ export const config = {
   openai: {
     apiKey: env.OPENAI_API_KEY,
   },
+  hosts: {
+    zazu: env.ZAZU_URL,
+  },
+  nauServiceKey: env.NAU_SERVICE_KEY,
   paths: {
     temp: './temp',
     storage: './storage',
