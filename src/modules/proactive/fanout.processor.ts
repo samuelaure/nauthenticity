@@ -14,7 +14,7 @@ export const runProactiveFanout = async () => {
     include: {
       brand: true,
       account: true,
-    }
+    },
   });
 
   if (brandTargets.length === 0) {
@@ -31,7 +31,7 @@ export const runProactiveFanout = async () => {
   try {
     const result = await runUniversalBatchInstagramScraper(usernames as string[], 3); // Max 3 recent posts per user
     scrapedItems = result.items;
-  } catch(error: any) {
+  } catch (error: any) {
     logger.error(`[FanoutProcessor] Batch scraping failed: ${error.message}`);
     return;
   }
@@ -56,22 +56,24 @@ export const runProactiveFanout = async () => {
             postedAt: new Date(item.timestamp),
             likes: item.likesCount,
             comments: item.commentsCount,
-          }
+          },
         });
       }
 
       // Check if we already processed this post for this brand
       const existingFeedback = await prisma.commentFeedback.findFirst({
-        where: { brandId: brand.id, postId: localPost.id }
+        where: { brandId: brand.id, postId: localPost.id },
       });
 
       if (!existingFeedback) {
-        logger.info(`[FanoutProcessor] Generating comments for brand ${brand.brandName} on post ${item.shortcode}...`);
-        
+        logger.info(
+          `[FanoutProcessor] Generating comments for brand ${brand.brandName} on post ${item.shortcode}...`,
+        );
+
         try {
           // Generate comments
           const comments = await generateProactiveComments(item.caption, brand.tonePrompt);
-          
+
           // Dispatch to Zazu
           await dispatchToZazu({
             userId: brand.userId,
@@ -81,7 +83,7 @@ export const runProactiveFanout = async () => {
             postUrl: item.url,
             postThumbnailUrl: item.displayUrl,
             suggestions: comments,
-            localPostId: localPost.id
+            localPostId: localPost.id,
           });
 
           // Optimistically log that we processed it
@@ -90,10 +92,12 @@ export const runProactiveFanout = async () => {
               brandId: brand.id,
               postId: localPost.id,
               commentText: JSON.stringify(comments),
-            }
+            },
           });
-        } catch(err: any) {
-             logger.error(`[FanoutProcessor] Error processing brand ${brand.brandName} for post ${item.shortcode}: ${err.message}`)
+        } catch (err: any) {
+          logger.error(
+            `[FanoutProcessor] Error processing brand ${brand.brandName} for post ${item.shortcode}: ${err.message}`,
+          );
         }
       }
     }

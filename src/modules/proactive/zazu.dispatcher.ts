@@ -13,17 +13,19 @@ export interface ProactiveSuggestionPayload {
 }
 
 export const dispatchToZazu = async (payload: ProactiveSuggestionPayload) => {
-  logger.info(`[ZazuDispatcher] Dispatching suggestion for brand ${payload.brandName} (User: ${payload.userId})...`);
-  
+  logger.info(
+    `[ZazuDispatcher] Dispatching suggestion for brand ${payload.brandName} (User: ${payload.userId})...`,
+  );
+
   try {
     const zazuUrl = config.hosts?.zazu || 'http://zazu:3000';
     const response = await fetch(`${zazuUrl}/api/internal/notify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.nauServiceKey}`
+        Authorization: `Bearer ${config.nauServiceKey}`,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
