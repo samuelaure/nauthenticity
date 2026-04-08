@@ -44,6 +44,10 @@ jobs:
             set -e
             mkdir -p /root/nauthenticity
 
+            # Login to GHCR to pull private images
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+
             # Write production .env from secrets
             cat > /root/nauthenticity/.env << 'ENVEOF'
             DB_USER=nauthenticity_user
