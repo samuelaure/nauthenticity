@@ -22,6 +22,19 @@ const FeedbackSchema = z.object({
   sourcePostId: z.string(),
 });
 
+const BrandSchema = z.object({
+  id: z.string().optional(),
+  brandName: z.string(),
+  tonePrompt: z.string(),
+  isActive: z.boolean().default(true),
+  userId: z.string(),
+});
+
+const TargetSchema = z.object({
+  brandId: z.string(),
+  usernames: z.array(z.string()),
+});
+
 export const proactiveController: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // 1. Reactive Trigger (For 9nau future use) - Mocked for now because specific post scraping takes time
   fastify.post('/v1/generate-comment', { preHandler: authenticate }, async (request, reply) => {
@@ -74,5 +87,85 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
     );
 
     return reply.send({ success: true, message: 'Fanout initiated in background' });
+  });
+
+  // 4. Brand Configuration Hub
+  fastify.get('/v1/brands', { preHandler: authenticate }, async (request, reply) => {
+    const { userId } = request.query as { userId?: string };
+    if (!userId) return reply.status(400).send({ error: 'Missing userId' });
+    
+    const brands = await prisma.brandConfig.findMany({
+      where: { userId },
+      include: { targets: { select: { username: true } } }
+    });
+    return reply.send(brands);
+  });
+
+  fastify.post('/v1/brands', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const data = BrandSchema.parse(request.body);
+      
+      const brandData = {
+        brandName: data.brandName,
+        tonePrompt: data.tonePrompt,
+        isActive: data.isActive,
+        userId: data.userId,
+      };
+
+      const brand = data.id 
+        ? await prisma.brandConfig.update({
+            where: { id: data.id },
+            data: brandData
+          })
+        : await prisma.brandConfig.create({
+            data: brandData
+          });
+
+      return reply.send(brand);
+    } catch (e: any) {
+      return reply.status(400).send({ error: e.message });
+    }
+  });
+
+  fastify.delete('/v1/brands/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    // Cascade delete targets first
+    await prisma.brandTarget.deleteMany({ where: { brandId: id } });
+    await prisma.brandConfig.delete({ where: { id } });
+    return reply.send({ success: true });
+  });
+
+  // 5. Target Management
+  fastify.post('/v1/targets', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const { brandId, usernames } = TargetSchema.parse(request.body);
+      
+      // Upsert Accounts first to satisfy FK
+      for (const username of usernames) {
+        await prisma.account.upsert({
+          where: { username },
+          create: { username },
+          update: {}
+        });
+        
+        await prisma.brandTarget.upsert({
+          where: { brandId_username: { brandId, username } },
+          create: { brandId, username },
+          update: {}
+        });
+      }
+      
+      return reply.send({ success: true });
+    } catch (e: any) {
+      return reply.status(400).send({ error: e.message });
+    }
+  });
+
+  fastify.delete('/v1/targets', { preHandler: authenticate }, async (request, reply) => {
+    const { brandId, username } = request.query as { brandId: string, username: string };
+    await prisma.brandTarget.delete({
+      where: { brandId_username: { brandId, username } }
+    });
+    return reply.send({ success: true });
   });
 };
