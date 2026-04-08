@@ -41,6 +41,23 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ${{ secrets.DEPLOY_PATH_NAUTHENTICITY }}
+            set -e
+            mkdir -p /root/nauthenticity
+
+            # Write production .env from secrets
+            cat > /root/nauthenticity/.env << 'ENVEOF'
+            DB_USER=nauthenticity_user
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_NAME=nauthenticity
+            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+            NAU_SERVICE_KEY=${{ secrets.NAU_SERVICE_KEY }}
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            APIFY_TOKEN=${{ secrets.APIFY_TOKEN }}
+            APIFY_INSTAGRAM_UNIVERSAL_ACTOR_ID=samuelaure/nau-ig-actor
+            TRANSCRIPTION_URL=http://whisper:8000
+            TAG=latest
+            ENVEOF
+
+            cd /root/nauthenticity
             docker compose pull
-            docker compose up -d
+            docker compose up -d --remove-orphans
