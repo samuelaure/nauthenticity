@@ -31,7 +31,7 @@ services:
         max-file: "3"
 
   app:
-    build: .
+    image: ghcr.io/samuelaure/nauthenticity/app:${TAG:-latest}
     container_name: nauthenticity
     restart: unless-stopped
     environment:
