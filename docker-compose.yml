@@ -2,7 +2,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: nauthenticity_postgres
-    restart: 'no'
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -10,62 +10,56 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - nauthenticity_network
-      - shared-mesh
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.tcp.routers.nauthenticity-postgres.rule=HostSNI(`postgres.nauthenticity.localhost`)'
-      - 'traefik.tcp.routers.nauthenticity-postgres.entrypoints=postgres'
-      - 'traefik.tcp.routers.nauthenticity-postgres.tls=true'
-      - 'traefik.tcp.services.nauthenticity-postgres.loadbalancer.server.port=5432'
-      - 'traefik.docker.network=shared-mesh'
+      - nau-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
     container_name: nauthenticity_redis
-    restart: 'no'
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     networks:
-      - nauthenticity_network
-      - shared-mesh
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.tcp.routers.nauthenticity-redis.rule=HostSNI(`redis.nauthenticity.localhost`)'
-      - 'traefik.tcp.routers.nauthenticity-redis.entrypoints=redis'
-      - 'traefik.tcp.routers.nauthenticity-redis.tls=true'
-      - 'traefik.tcp.services.nauthenticity-redis.loadbalancer.server.port=6379'
-      - 'traefik.docker.network=shared-mesh'
+      - nau-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   app:
     build: .
     container_name: nauthenticity
-    restart: 'no'
+    restart: unless-stopped
     environment:
       - PORT=${PORT:-3000}
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=production
       - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - APIFY_TOKEN=${APIFY_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - TRANSCRIPTION_URL=${TRANSCRIPTION_URL:-http://localhost:8000}
+      - NAU_SERVICE_KEY=${NAU_SERVICE_KEY}
+      - TRANSCRIPTION_URL=${TRANSCRIPTION_URL:-http://whisper:8000}
     volumes:
       - ./storage:/app/storage
-    # ports:
-    #   - '3000:3000'
     networks:
-      - nauthenticity_network
-      - shared-mesh
+      - nau-network
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.nauthenticity.rule=Host(`nauthenticity.localhost`) || Host(`nauthenticity.9nau.com`)'
-      - 'traefik.http.routers.nauthenticity.entrypoints=web'
+      - 'traefik.http.routers.nauthenticity.rule=Host(`nauthenticity.9nau.com`)'
+      - 'traefik.http.routers.nauthenticity.entrypoints=websecure'
+      - 'traefik.http.routers.nauthenticity.tls=true'
+      - 'traefik.http.routers.nauthenticity.tls.certresolver=letsencrypt'
       - 'traefik.http.services.nauthenticity.loadbalancer.server.port=3000'
-      - 'traefik.docker.network=shared-mesh'
+      - 'traefik.docker.network=nau-network'
 
 networks:
-  nauthenticity_network:
-    driver: bridge
-  shared-mesh:
+  nau-network:
     external: true
 
 volumes:
