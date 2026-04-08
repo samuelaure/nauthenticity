@@ -9,6 +9,7 @@ export const config = {
   redis: {
     host: env.REDIS_HOST,
     port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD,
   },
   apify: {
     token: env.APIFY_TOKEN,

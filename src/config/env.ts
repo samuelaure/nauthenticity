@@ -6,6 +6,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().default(6379),
+  REDIS_PASSWORD: z.string().optional(),
   APIFY_TOKEN: z.string().min(1),
   APIFY_INSTAGRAM_UNIVERSAL_ACTOR_ID: z.string().default('samuelaure/nau-ig-actor'),
   OPENAI_API_KEY: z.string().min(1),
