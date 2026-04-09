@@ -104,27 +104,36 @@ model Embedding {
 }
 
 model BrandConfig {
-  id          String   @id @default(uuid())
-  userId      String   // Links to the user on the platform
-  brandName   String
-  tonePrompt  String   @db.Text
-  isActive    Boolean  @default(true)
-  
-  targets     BrandTarget[]
-  feedbacks   CommentFeedback[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(uuid())
+  userId           String   // Telegram ID del usuario naŭ
+  brandName        String
+  voicePrompt      String   @db.Text  // Brand DNA canónico — Level 1 del prompt
+  commentStrategy  String?  @db.Text  // Intención global de comentarios — Level 2
+  suggestionsCount Int      @default(3) // Cuántas sugerencias generar (configurable)
+
+  // Ventana de actividad (sincronizada desde Zazŭ)
+  windowStart      String?             // "HH:MM" — inicio de ventana activa del usuario
+  windowEnd        String?             // "HH:MM" — fin de ventana activa del usuario
+  timezone         String   @default("UTC")
+
+  isActive         Boolean  @default(true)
+
+  targets          BrandTarget[]
+  feedbacks        CommentFeedback[]
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model BrandTarget {
-  id           String       @id @default(uuid())
-  brandId      String
-  brand        BrandConfig  @relation(fields: [brandId], references: [id])
-  username     String
-  account      Account      @relation(fields: [username], references: [username])
-  
-  createdAt    DateTime @default(now())
+  id               String       @id @default(uuid())
+  brandId          String
+  brand            BrandConfig  @relation(fields: [brandId], references: [id])
+  username         String
+  account          Account      @relation(fields: [username], references: [username])
+  profileStrategy  String?      @db.Text  // Estrategia específica para este perfil — Level 3
+
+  createdAt        DateTime @default(now())
 
   @@unique([brandId, username])
 }
@@ -135,7 +144,7 @@ model CommentFeedback {
   brand        BrandConfig  @relation(fields: [brandId], references: [id])
   postId       String
   post         Post         @relation(fields: [postId], references: [id])
-  commentText  String       @db.Text
-  isEdited     Boolean      @default(false)
+  commentText  String       @db.Text  // Sugerencia elegida por el usuario (isSelected=true) o JSON de sugerencias (isSelected=false)
+  isSelected   Boolean      @default(false) // true = el usuario confirmó esta sugerencia; false = registro optimista de dedup
   sentAt       DateTime     @default(now())
 }
