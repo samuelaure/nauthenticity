@@ -10,6 +10,7 @@ import { config } from './config';
 import { prisma } from './db/prisma';
 import { logger } from './utils/logger';
 import { errorHandler } from './utils/errorHandler';
+import { startScheduler } from './scheduler';
 
 // Import Workers (Registers them with BullMQ)
 import { downloadWorker } from './queues/download.worker';
@@ -109,6 +110,9 @@ const start = async () => {
 
     await fastify.listen({ port: config.port, host: '0.0.0.0' });
     logger.info(`[App] Server listening on ${config.port} in ${env.NODE_ENV} mode`);
+
+    // Start the smart fanout scheduler after infrastructure is confirmed ready
+    startScheduler();
   } catch (err) {
     logger.error(`[App] Failed to start server: ${err}`);
     process.exit(1);
