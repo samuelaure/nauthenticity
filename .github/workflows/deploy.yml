@@ -65,4 +65,9 @@ jobs:
 
             cd /root/nauthenticity
             docker compose pull
+
+            # Run pending Prisma migrations before starting the new container
+            docker compose run --rm --no-deps app npx prisma migrate deploy --schema src/db/schema.prisma
+
             docker compose up -d --remove-orphans
+            docker system prune -f
