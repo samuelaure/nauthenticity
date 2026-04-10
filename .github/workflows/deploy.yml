@@ -67,6 +67,7 @@ jobs:
             docker compose pull
 
             # Run pending Prisma migrations before starting the new container
+            docker compose run --rm --no-deps app npx prisma migrate resolve --rolled-back 20260410_comment_suggester_v2 --schema src/db/schema.prisma || true
             docker compose run --rm --no-deps app npx prisma migrate deploy --schema src/db/schema.prisma
 
             docker compose up -d --remove-orphans
