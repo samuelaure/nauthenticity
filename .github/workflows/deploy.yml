@@ -64,10 +64,10 @@ jobs:
             tr -d '\r' < /root/nauthenticity/.env.tmp > /root/nauthenticity/.env
 
             cd /root/nauthenticity
+            docker system prune -f
             docker compose pull
 
             # Run pending Prisma migrations before starting the new container
             docker compose run --rm --no-deps app npx prisma migrate deploy --schema src/db/schema.prisma
 
             docker compose up -d --remove-orphans
-            docker system prune -f
