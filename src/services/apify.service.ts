@@ -381,3 +381,44 @@ export const runUniversalBatchInstagramScraper = async (
     datasetId: run.defaultDatasetId,
   };
 };
+
+export const scrapePostByUrl = async (
+  url: string,
+  onStatus?: (message: string) => Promise<void>
+): Promise<NauIGPost | null> => {
+  logger.info(`[Apify] Starting single post scrape for: ${url}...`);
+
+  try {
+    const { items } = await withRetry(
+      async () => {
+        if (onStatus) await onStatus(`Starting Apify actor for single post...`);
+
+        const actorRun = await client.actor(config.apify.instagramUniversalActorId).call(
+          {
+            mode: 'FEED', // Actor's input processor will detect it's a post URL
+            usernames: [url],
+            limit: 1,
+            proxyConfiguration: { useApifyProxy: true },
+          },
+          { waitSecs: 3600, memory: 1024 }
+        );
+
+        if (actorRun.status !== 'SUCCEEDED') {
+          throw new Error(`Apify actor run status: ${actorRun.status}`);
+        }
+
+        const { items: datasetItems } = await client.dataset(actorRun.defaultDatasetId).listItems();
+        return { items: datasetItems as unknown as any[] };
+      },
+      { attempts: 3, delay: 5000, factor: 2 }
+    );
+
+    // Items[0] is profile if mode=FEED/PROFILE, but we want the post
+    // The actor returns profile first, then posts.
+    const post = items.find(item => !!item.shortcode) as NauIGPost;
+    return post || null;
+  } catch (error: any) {
+    logger.error(`[Apify] Error scraping post by URL ${url}: ${error.message}`);
+    return null;
+  }
+};

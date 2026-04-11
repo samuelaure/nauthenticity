@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { logger } from '../../utils/logger';
 import { runProactiveFanout } from './fanout.processor';
+import { generateReactiveComments } from './reactive.service';
 import { config } from '../../config';
 
 // ---------------------------------------------------------------------------
@@ -77,9 +78,11 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
       const brand = await prisma.brandConfig.findUnique({ where: { id: brandId } });
       if (!brand) return reply.status(404).send({ error: 'Brand config not found' });
 
+      const suggestions = await generateReactiveComments(targetUrl, brandId);
+
       return reply.send({
         success: true,
-        message: 'Reactive endpoint active. Sync scraping integration pending.',
+        suggestions,
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
