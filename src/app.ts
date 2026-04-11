@@ -29,7 +29,11 @@ const fastify = Fastify({
 });
 
 // Configure Plugins
-fastify.register(cors, { origin: true });
+fastify.register(cors, {
+  origin: process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',')
+    : ['http://localhost:3000'],
+});
 fastify.register(rateLimit, {
   max: 10000,
   timeWindow: '1 minute',
