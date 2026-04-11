@@ -16,6 +16,11 @@ services:
       options:
         max-size: '10m'
         max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.35'
+          memory: 192M
 
   nauthenticity_redis:
     image: redis:7-alpine
@@ -29,6 +34,11 @@ services:
       options:
         max-size: '10m'
         max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.35'
+          memory: 192M
 
   app:
     image: ghcr.io/samuelaure/nauthenticity/app:${TAG:-latest}
@@ -57,6 +67,16 @@ services:
       - 'traefik.http.routers.nauthenticity.tls.certresolver=letsencrypt'
       - 'traefik.http.services.nauthenticity.loadbalancer.server.port=3000'
       - 'traefik.docker.network=nau-network'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.7'
+          memory: 384M
 
 networks:
   nau-network:
