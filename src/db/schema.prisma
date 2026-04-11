@@ -31,6 +31,7 @@ model Post {
   media           Media[]
   transcripts     Transcript[]
   feedbacks       CommentFeedback[]
+  inspoItems      InspoItem[]
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -120,6 +121,7 @@ model BrandConfig {
 
   targets          BrandTarget[]
   feedbacks        CommentFeedback[]
+  inspoItems       InspoItem[]
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -147,4 +149,21 @@ model CommentFeedback {
   commentText  String       @db.Text  // Sugerencia elegida por el usuario (isSelected=true) o JSON de sugerencias (isSelected=false)
   isSelected   Boolean      @default(false) // true = el usuario confirmó esta sugerencia; false = registro optimista de dedup
   sentAt       DateTime     @default(now())
+}
+
+model InspoItem {
+  id              String      @id @default(uuid())
+  brandId         String
+  brand           BrandConfig @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  postId          String?
+  post            Post?       @relation(fields: [postId], references: [id])
+  type            String      // "inspo" or "replicate"
+  note            String?     @db.Text
+  status          String      @default("pending") // "pending", "processed", "used"
+  extractedHook   String?     @db.Text
+  extractedTheme  String?
+  adaptedScript   String?     @db.Text // For "replicate" type — brand-adapted script
+  injectedContext String?     @db.Text // Additional data (strategy docs, etc.)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 }

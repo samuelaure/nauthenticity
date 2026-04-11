@@ -22,6 +22,7 @@ import { ingestionController } from './modules/ingestion/ingestion.controller';
 import { contentController } from './modules/content/content.controller';
 import { analyticsController } from './modules/analytics/analytics.controller';
 import { proactiveController } from './modules/proactive/proactive.controller';
+import { inspoController } from './modules/content/inspo.controller';
 
 const fastify = Fastify({
   logger: true,
@@ -97,6 +98,7 @@ fastify.register(ingestionController, { prefix: '/api' });
 fastify.register(contentController, { prefix: '/api' });
 fastify.register(analyticsController, { prefix: '/api' });
 fastify.register(proactiveController, { prefix: '/api' });
+fastify.register(inspoController, { prefix: '/api' });
 const start = async () => {
   try {
     // D2: Startup Readiness Check
