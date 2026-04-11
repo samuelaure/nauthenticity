@@ -73,6 +73,8 @@ fastify.get('/health', async () => {
 
   return {
     status: dbHealth === 'ok' ? 'ok' : 'degraded',
+    service: 'nauthenticity',
+    uptime: Math.floor(process.uptime()),
     environment: env.NODE_ENV,
     timestamp: new Date().toISOString(),
     services: {
