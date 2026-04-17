@@ -38,7 +38,6 @@ const InspoProcessSchema = z.object({
 // Controller
 // ---------------------------------------------------------------------------
 export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstance) => {
-
   // -------------------------------------------------------------------------
   // 1. Create InspoItem
   // -------------------------------------------------------------------------
@@ -72,7 +71,9 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
         },
       });
 
-      logger.info(`[InspoBase] Created ${type} item for brand ${brand.brandName} (ID: ${inspoItem.id})`);
+      logger.info(
+        `[InspoBase] Created ${type} item for brand ${brand.brandName} (ID: ${inspoItem.id})`,
+      );
       return reply.status(201).send(inspoItem);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

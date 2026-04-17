@@ -13,14 +13,12 @@ const SynthesisOutputSchema = z.object({
   content: z
     .string()
     .describe(
-      'A rich creative synthesis/digest text that captures the brand\'s current creative direction, trends, and inspiration.',
+      "A rich creative synthesis/digest text that captures the brand's current creative direction, trends, and inspiration.",
     ),
   attachedUrls: z
     .array(z.string())
     .describe('Instagram URLs of the posts that most heavily influenced this synthesis.'),
-  reasoning: z
-    .string()
-    .describe('Brief reasoning explaining the creative direction chosen.'),
+  reasoning: z.string().describe('Brief reasoning explaining the creative direction chosen.'),
 });
 
 type SynthesisOutput = z.infer<typeof SynthesisOutputSchema>;
@@ -41,24 +39,34 @@ function getOpenAI(): OpenAI {
   return new OpenAI({ apiKey: config.openai.apiKey });
 }
 
-async function runSynthesisLLM(systemPrompt: string, userContent: string): Promise<SynthesisOutput> {
+async function runSynthesisLLM(
+  systemPrompt: string,
+  userContent: string,
+): Promise<SynthesisOutput> {
   const openai = getOpenAI();
 
-  const completion = await openai.beta.chat.completions.parse({
+  const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
     temperature: 0.7,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userContent },
     ],
-    response_format: zodResponseFormat(SynthesisOutputSchema, 'SynthesisOutput'),
+    response_format: { type: 'json_object' },
   });
 
-  const parsed = completion.choices[0]?.message?.parsed;
-  if (!parsed) {
+  const content = completion.choices[0]?.message?.content;
+  if (!content) {
     throw new Error('[SynthesisService] OpenAI returned an empty synthesis response.');
   }
-  return parsed;
+
+  try {
+    const parsed = JSON.parse(content);
+    return SynthesisOutputSchema.parse(parsed);
+  } catch (err: any) {
+    logger.error(`[SynthesisService] Failed to parse LLM output: ${content}`, err);
+    throw new Error('[SynthesisService] LLM response was not valid JSON.');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -204,13 +212,15 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
 
   if (!shouldGenerate) {
     // Return cached recent synthesis if available
-    const cached = await prisma.brandSynthesis.findFirst({
+    const cached = await (prisma as any).brandSynthesis.findFirst({
       where: { brandId, type: 'recent' },
       orderBy: { createdAt: 'desc' },
     });
 
     if (cached) {
-      logger.info(`[SynthesisService] Returning cached Recent Synthesis for brand "${brand.brandName}"`);
+      logger.info(
+        `[SynthesisService] Returning cached Recent Synthesis for brand "${brand.brandName}"`,
+      );
       return {
         content: cached.content,
         attachedUrls: cached.attachedUrls as string[],
@@ -223,12 +233,12 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
   // ── Fetch context for generation ──────────────────────────────────────────
 
   const [recentSyntheses, globalSynthesis, newInspoItems] = await Promise.all([
-    prisma.brandSynthesis.findMany({
+    (prisma as any).brandSynthesis.findMany({
       where: { brandId, type: 'recent' },
       orderBy: { createdAt: 'desc' },
       take: 3,
     }),
-    prisma.brandSynthesis.findFirst({
+    (prisma as any).brandSynthesis.findFirst({
       where: { brandId, type: 'global' },
       orderBy: { createdAt: 'desc' },
     }),
@@ -242,14 +252,16 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
     }),
   ]);
 
-  const recentTexts = recentSyntheses.map((s) => s.content);
+  const recentTexts = recentSyntheses.map((s: any) => s.content);
   let currentGlobalContent: string | null = globalSynthesis?.content ?? null;
 
   // ── Global Synthesis (every 4th recent update: request 12, 24, 36...) ────
 
   const recentUpdateIndex = count / 3; // only reached when shouldGenerate is true
   if (recentUpdateIndex % 4 === 0) {
-    logger.info(`[SynthesisService] Request #${count} is the ${recentUpdateIndex}th recent update — triggering Global Synthesis`);
+    logger.info(
+      `[SynthesisService] Request #${count} is the ${recentUpdateIndex}th recent update — triggering Global Synthesis`,
+    );
 
     const globalResult = await generateGlobalSynthesis(
       brandId,
@@ -259,7 +271,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
       recentTexts,
     );
 
-    await prisma.brandSynthesis.create({
+    await (prisma as any).brandSynthesis.create({
       data: {
         brandId,
         type: 'global',
@@ -274,7 +286,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
 
   // ── Recent Synthesis ──────────────────────────────────────────────────────
 
-  const newPostsForContext: NewPost[] = newInspoItems.map((item) => ({
+  const newPostsForContext: NewPost[] = newInspoItems.map((item: any) => ({
     instagramUrl: item.post?.instagramUrl ?? null,
     caption: item.post?.caption ?? null,
   }));
@@ -289,7 +301,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
     newPostsForContext,
   );
 
-  const synthesis = await prisma.brandSynthesis.create({
+  const synthesis = await (prisma as any).brandSynthesis.create({
     data: {
       brandId,
       type: 'recent',

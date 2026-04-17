@@ -1,21 +1,29 @@
 import { prisma } from '../../db/prisma';
 import { logger } from '../../utils/logger';
 import { scrapePostByUrl } from '../../services/apify.service';
-import { generateCommentSuggestions, CommentSuggestionParams } from '../../services/intelligence.service';
+import {
+  generateCommentSuggestions,
+  CommentSuggestionParams,
+} from '../../services/intelligence.service';
 
-export const generateReactiveComments = async (targetUrl: string, brandId: string): Promise<string[]> => {
-  logger.info(`[ReactiveService] Starting reactive generation for ${targetUrl} (Brand: ${brandId})`);
+export const generateReactiveComments = async (
+  targetUrl: string,
+  brandId: string,
+): Promise<string[]> => {
+  logger.info(
+    `[ReactiveService] Starting reactive generation for ${targetUrl} (Brand: ${brandId})`,
+  );
 
   // 1. Fetch Brand Context
-  const brand = await prisma.brandConfig.findUnique({ 
-    where: { id: brandId } 
+  const brand = await prisma.brandConfig.findUnique({
+    where: { id: brandId },
   });
   if (!brand) throw new Error('Brand not found');
 
   // 2. Resolve Post
   let post = await prisma.post.findUnique({
     where: { instagramUrl: targetUrl },
-    include: { transcripts: { orderBy: { createdAt: 'desc' }, take: 1 } }
+    include: { transcripts: { orderBy: { createdAt: 'desc' }, take: 1 } },
   });
 
   if (!post) {
@@ -36,20 +44,20 @@ export const generateReactiveComments = async (targetUrl: string, brandId: strin
         likes: scraped.likesCount,
         comments: scraped.commentsCount,
       },
-      include: { transcripts: { take: 1 } }
+      include: { transcripts: { take: 1 } },
     });
   }
 
   // 3. Fetch Profile Strategy (Level 3)
   const target = await prisma.brandTarget.findUnique({
-    where: { brandId_username: { brandId, username: post.username || '' } }
+    where: { brandId_username: { brandId, username: post.username || '' } },
   });
 
   // 4. Fetch Last Selected Comments (Level 4)
   const lastFeedbacks = await prisma.commentFeedback.findMany({
     where: { brandId, isSelected: true },
     orderBy: { sentAt: 'desc' },
-    take: 5
+    take: 5,
   });
 
   // 5. Generate
@@ -58,15 +66,15 @@ export const generateReactiveComments = async (targetUrl: string, brandId: strin
       caption: post.caption || '',
       transcriptText: post.transcripts[0]?.text || '',
       instagramUrl: post.instagramUrl,
-      targetUsername: post.username || 'unknown'
+      targetUsername: post.username || 'unknown',
     },
     brand: {
       voicePrompt: brand.voicePrompt,
       commentStrategy: brand.commentStrategy,
-      suggestionsCount: brand.suggestionsCount
+      suggestionsCount: brand.suggestionsCount,
     },
     profileStrategy: target?.profileStrategy || null,
-    lastSelectedComments: lastFeedbacks.map(f => f.commentText)
+    lastSelectedComments: lastFeedbacks.map((f) => f.commentText),
   };
 
   const comments = await generateCommentSuggestions(params);
@@ -77,8 +85,8 @@ export const generateReactiveComments = async (targetUrl: string, brandId: strin
       brandId,
       postId: post.id,
       commentText: JSON.stringify(comments),
-      isSelected: false
-    }
+      isSelected: false,
+    },
   });
 
   return comments;

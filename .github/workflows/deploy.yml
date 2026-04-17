@@ -66,14 +66,14 @@ jobs:
             cd /root/nauthenticity
             echo "--- Server Disk Space [BEFORE SWAP] ---"
             df -h /
-            
+
             # Prune previous dangling images (older than 2h) to clear runway for pull
             docker image prune -a -f --filter "until=2h" || true
 
             # Pull and deploy
             TAG=latest docker compose pull
             TAG=latest docker compose up -d --remove-orphans
-            
+
             # Prune old images
             docker image prune -a -f --filter "until=2h" || true
 
