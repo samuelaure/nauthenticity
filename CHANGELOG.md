@@ -11,6 +11,15 @@ All notable changes to this project will be documented in this file. See [standa
 * **db:** add BrandSynthesis and request tracking for mechanical ideation ([8610123](https://github.com/samuelaure/nauthenticity/commit/86101234b3f17c015d58ec90bc8c656bc0718ede))
 * **ideation:** implement mechanical content synthesis engine and digest endpoint ([ed0a238](https://github.com/samuelaure/nauthenticity/commit/ed0a238697c2fd811673cd049587343aebe85a47))
 
+## [1.5.0](https://github.com/samuelaure/nauthenticity/compare/v1.4.3...v1.5.0) (2026-04-17)
+
+
+### Features
+
+* **ci:** implement safe sequential deployment and disk health monitoring ([91d7533](https://github.com/samuelaure/nauthenticity/commit/91d7533973b65da47a1cffc7991a616511d38410))
+* **db:** add BrandSynthesis and request tracking for mechanical ideation ([8610123](https://github.com/samuelaure/nauthenticity/commit/86101234b3f17c015d58ec90bc8c656bc0718ede))
+* **ideation:** implement mechanical content synthesis engine and digest endpoint ([ed0a238](https://github.com/samuelaure/nauthenticity/commit/ed0a238697c2fd811673cd049587343aebe85a47))
+
 ### [1.4.2](https://github.com/samuelaure/nauthenticity/compare/v1.4.1...v1.4.2) (2026-04-10)
 
 ### Bug Fixes
