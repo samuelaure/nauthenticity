@@ -119,12 +119,28 @@ model BrandConfig {
 
   isActive         Boolean  @default(true)
 
+  // Phase 11: Mechanical synthesis tracking
+  inspoRequestCount Int     @default(0)  // Increments on each /digest request; drives synthesis cadence
+
   targets          BrandTarget[]
   feedbacks        CommentFeedback[]
   inspoItems       InspoItem[]
+  syntheses        BrandSynthesis[]
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+model BrandSynthesis {
+  id           String      @id @default(uuid())
+  brandId      String
+  brand        BrandConfig @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  type         String      // "global" | "recent"
+  content      String      @db.Text  // The synthesized creative direction text
+  attachedUrls Json        @default("[]")  // String[] — post URLs that heavily influenced this synthesis
+  createdAt    DateTime    @default(now())
+
+  @@index([brandId, type])
 }
 
 model BrandTarget {
