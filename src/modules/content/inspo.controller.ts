@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { logger } from '../../utils/logger';
 import { config } from '../../config';
+import { getDigest } from './synthesis.service';
 
 // ---------------------------------------------------------------------------
 // Auth middleware — NAU_SERVICE_KEY
@@ -179,7 +180,30 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
   });
 
   // -------------------------------------------------------------------------
-  // 5. Repost — Forward to flownaŭ
+  // 5. Digest — Mechanical InspoBase Synthesis (Phase 11)
+  // -------------------------------------------------------------------------
+  fastify.get('/v1/inspo/digest', { preHandler: authenticate }, async (request, reply) => {
+    const { brandId } = request.query as { brandId?: string };
+
+    if (!brandId) {
+      return reply.status(400).send({ error: 'Missing required query parameter: brandId' });
+    }
+
+    const brand = await prisma.brandConfig.findUnique({ where: { id: brandId } });
+    if (!brand) return reply.status(404).send({ error: 'Brand not found' });
+
+    try {
+      const digest = await getDigest(brandId);
+      return reply.send(digest);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error(`[InspoDigest] Error generating digest for brand ${brandId}: ${msg}`);
+      return reply.status(500).send({ error: `Digest generation failed: ${msg}` });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. Repost — Forward to flownaŭ
   // -------------------------------------------------------------------------
   fastify.post('/v1/repost', { preHandler: authenticate }, async (request, reply) => {
     const { brandId, postUrl } = request.body as { brandId?: string; postUrl?: string };
