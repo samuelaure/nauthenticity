@@ -12,10 +12,10 @@ export const ingestProfile = async (
   logger.info(`[Ingester] Starting ingestion for ${username}`);
 
   // 0. Ensure Account exists (Identity) - Placeholder
-  let account = await prisma.account.findUnique({ where: { username } });
+  let account = await prisma.igProfile.findUnique({ where: { username } });
   if (!account) {
     logger.info(`[Ingester] Account ${username} not found. Creating placeholder.`);
-    account = await prisma.account.create({
+    account = await prisma.igProfile.create({
       data: { username, lastScrapedAt: new Date() },
     });
   }
@@ -95,7 +95,7 @@ export const ingestProfile = async (
     if (scrapeResult.profile && scrapeResult.profile.username) {
       const hdUrl = scrapeResult.profile.profilePicUrlHD || scrapeResult.profile.profilePicUrl;
       if (hdUrl) {
-        await prisma.account.updateMany({
+        await prisma.igProfile.updateMany({
           where: { username: scrapeResult.profile.username },
           data: { profileImageUrl: hdUrl },
         });
@@ -190,11 +190,11 @@ export const ingestProfile = async (
 
       // 2. Ensure all discovered collaborators have Accounts and local avatars
       for (const collab of collaborators) {
-        let collabAccount = await prisma.account.findUnique({
+        let collabAccount = await prisma.igProfile.findUnique({
           where: { username: collab.username },
         });
         if (!collabAccount && collab.username) {
-          collabAccount = await prisma.account.create({
+          collabAccount = await prisma.igProfile.create({
             data: {
               username: collab.username,
               profileImageUrl: collab.profilePicUrl,

@@ -13,7 +13,7 @@ export const contentController = async (fastify: FastifyInstance) => {
       const take = Number(limit);
 
       const [accounts, total] = await Promise.all([
-        prisma.account.findMany({
+        prisma.igProfile.findMany({
           where: {
             posts: { some: {} },
           },
@@ -22,7 +22,7 @@ export const contentController = async (fastify: FastifyInstance) => {
           skip,
           take,
         }),
-        prisma.account.count({ where: { posts: { some: {} } } }),
+        prisma.igProfile.count({ where: { posts: { some: {} } } }),
       ]);
 
       return {
@@ -43,7 +43,7 @@ export const contentController = async (fastify: FastifyInstance) => {
   fastify.get('/accounts/:username', async (request: FastifyRequest, reply: FastifyReply) => {
     const { username } = request.params as { username: string };
     try {
-      const account = await prisma.account.findUnique({
+      const account = await prisma.igProfile.findUnique({
         where: { username },
         include: {
           posts: {
@@ -55,7 +55,7 @@ export const contentController = async (fastify: FastifyInstance) => {
           },
         },
       });
-      if (!account) return reply.status(404).send({ error: 'Account not found' });
+      if (!account) return reply.status(404).send({ error: 'IgProfile not found' });
       return account;
     } catch (e) {
       request.log.error(e);
@@ -68,7 +68,7 @@ export const contentController = async (fastify: FastifyInstance) => {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { username } = request.params as { username: string };
       try {
-        const account = await prisma.account.findUnique({
+        const account = await prisma.igProfile.findUnique({
           where: { username },
           include: {
             posts: {
@@ -80,7 +80,7 @@ export const contentController = async (fastify: FastifyInstance) => {
           },
         });
 
-        if (!account) return reply.status(404).send({ error: 'Account not found' });
+        if (!account) return reply.status(404).send({ error: 'IgProfile not found' });
 
         let output = `DATA EXPORT FOR: ${account.username}\n`;
         output += `Generated on: ${new Date().toISOString()}\n`;
@@ -122,7 +122,7 @@ export const contentController = async (fastify: FastifyInstance) => {
         include: {
           media: true,
           transcripts: true,
-          account: true,
+          igProfile: true,
         },
       });
       if (!post) return reply.status(404).send({ error: 'Post not found' });

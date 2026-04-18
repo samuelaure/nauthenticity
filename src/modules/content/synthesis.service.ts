@@ -192,7 +192,7 @@ Identify which specific post URLs most influenced this direction and include the
  */
 export async function getDigest(brandId: string): Promise<BrandDigest> {
   // Atomically increment and read count
-  const brand = await prisma.brandConfig.update({
+  const brand = await prisma.brand.update({
     where: { id: brandId },
     data: { inspoRequestCount: { increment: 1 } },
     select: {
