@@ -7,25 +7,21 @@ import { dispatchToZazu } from './zazu.dispatcher';
 import { logger } from '../../utils/logger';
 import { prisma } from '../../db/prisma';
 import { toZonedTime } from 'date-fns-tz';
-import type { BrandConfig, BrandTarget, Account } from '@prisma/client';
+import type { Brand, BrandTarget, IgProfile } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type BrandWithTargets = BrandConfig & {
-  targets: (BrandTarget & { account: Account })[];
+type BrandWithTargets = Brand & {
+  targets: (BrandTarget & { igProfile: IgProfile })[];
 };
 
 // ---------------------------------------------------------------------------
 // Window logic
 // ---------------------------------------------------------------------------
 
-/**
- * Returns true if `now` falls within the brand's configured delivery window
- * (in the brand's timezone). Supports windows that cross midnight.
- */
-export function isInWindow(brand: BrandConfig, now: Date): boolean {
+export function isInWindow(brand: Brand, now: Date): boolean {
   if (!brand.windowStart || !brand.windowEnd) return false;
 
   const zoned = toZonedTime(now, brand.timezone);
@@ -37,10 +33,8 @@ export function isInWindow(brand: BrandConfig, now: Date): boolean {
   const endMin = eh * 60 + (em ?? 0);
 
   if (startMin <= endMin) {
-    // Normal window (e.g. 09:00 → 22:00)
     return currentMin >= startMin && currentMin < endMin;
   } else {
-    // Crosses midnight (e.g. 22:00 → 02:00)
     return currentMin >= startMin || currentMin < endMin;
   }
 }
@@ -49,20 +43,13 @@ export function isInWindow(brand: BrandConfig, now: Date): boolean {
 // Smart Fanout — called by the scheduler every 15 minutes
 // ---------------------------------------------------------------------------
 
-/**
- * Evaluates all active brands, selects eligible targets based on the
- * 15-minute (in-window) / 60-minute (out-of-window) scraping threshold,
- * deduplicates usernames, executes ONE Apify batch request, and fans out
- * comment generation per brand.
- */
 export const runProactiveFanout = async (now: Date = new Date()): Promise<void> => {
   logger.info(`[FanoutProcessor] Starting smart fanout cycle at ${now.toISOString()}...`);
 
-  // 1. Load all active brands with their targets and account metadata
-  const allBrands = (await prisma.brandConfig.findMany({
-    where: { isActive: true },
+  const allBrands = (await prisma.brand.findMany({
+    where: { isActive: true, isDeleted: false },
     include: {
-      targets: { include: { account: true } },
+      targets: { include: { igProfile: true } },
     },
   })) as BrandWithTargets[];
 
@@ -71,8 +58,6 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
     return;
   }
 
-  // 2. Determine which targets are eligible based on scraping thresholds
-  // Map: username → Set of brandIds interested in that username
   const eligibleTargets = new Map<string, Set<string>>();
 
   for (const brand of allBrands) {
@@ -81,7 +66,7 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
     const cutoff = new Date(now.getTime() - thresholdMs);
 
     for (const target of brand.targets) {
-      const lastScrape = target.account.lastScrapedAt;
+      const lastScrape = target.igProfile.lastScrapedAt;
       if (!lastScrape || lastScrape < cutoff) {
         if (!eligibleTargets.has(target.username)) {
           eligibleTargets.set(target.username, new Set());
@@ -98,10 +83,9 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
 
   const usernames = [...eligibleTargets.keys()];
   logger.info(
-    `[FanoutProcessor] Scraping ${usernames.length} unique account(s): ${usernames.join(', ')}`,
+    `[FanoutProcessor] Scraping ${usernames.length} unique profile(s): ${usernames.join(', ')}`,
   );
 
-  // 3. Execute ONE Apify batch request (max 4 posts per account)
   let scrapedItems: Awaited<ReturnType<typeof runUniversalBatchInstagramScraper>>['items'];
   try {
     const result = await runUniversalBatchInstagramScraper(usernames, 4);
@@ -112,13 +96,11 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
     return;
   }
 
-  // 4. Update lastScrapedAt for all scraped accounts
-  await prisma.account.updateMany({
+  await prisma.igProfile.updateMany({
     where: { username: { in: usernames } },
     data: { lastScrapedAt: now },
   });
 
-  // 5. Fan out: generate comments per brand × per new post
   const brandMap = new Map(allBrands.map((b) => [b.id, b]));
 
   for (const item of scrapedItems) {
@@ -129,7 +111,6 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
       const brand = brandMap.get(brandId);
       if (!brand) continue;
 
-      // 5a. Upsert the post — skip processing if instagramId already exists
       let localPost = await prisma.post.findFirst({
         where: {
           OR: [{ instagramId: item.id }, { instagramUrl: item.url }],
@@ -150,7 +131,6 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
         });
       }
 
-      // 5b. Skip if this brand already has a feedback record for this post
       const alreadyProcessed = await prisma.commentFeedback.findFirst({
         where: { brandId, postId: localPost.id },
       });
@@ -161,7 +141,6 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
         continue;
       }
 
-      // 5c. Fetch the last 9 selected comments for this brand (Level 4 context)
       const lastSelectedFeedbacks = await prisma.commentFeedback.findMany({
         where: { brandId, isSelected: true },
         orderBy: { sentAt: 'desc' },
@@ -170,7 +149,6 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
       });
       const lastSelectedComments = lastSelectedFeedbacks.map((f) => f.commentText);
 
-      // 5d. Find the BrandTarget for profile-specific strategy
       const brandTarget = brand.targets.find((t) => t.username === item.ownerUsername);
 
       logger.info(
@@ -178,11 +156,10 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
       );
 
       try {
-        // 5e. Build params and generate suggestions (5-level prompt)
         const suggestionParams: CommentSuggestionParams = {
           post: {
             caption: item.caption ?? '',
-            transcriptText: undefined, // Transcripts are not available at fanout stage
+            transcriptText: undefined,
             instagramUrl: item.url,
             targetUsername: item.ownerUsername,
           },
@@ -197,9 +174,8 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
 
         const suggestions = await generateCommentSuggestions(suggestionParams);
 
-        // 5f. Dispatch to Zazŭ
         await dispatchToZazu({
-          userId: brand.userId,
+          workspaceId: brand.workspaceId,
           brandId: brand.id,
           brandName: brand.brandName,
           targetUsername: item.ownerUsername,
@@ -209,7 +185,6 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
           localPostId: localPost.id,
         });
 
-        // 5g. Save optimistic dedup record (isSelected=false)
         await prisma.commentFeedback.create({
           data: {
             brandId,

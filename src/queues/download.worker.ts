@@ -191,7 +191,7 @@ export const downloadWorker = new Worker(
 
           // If this is the profile pic of the account being scraped, update its main profile URL
           if (username === contextUsername) {
-            await prisma.account.update({
+            await prisma.igProfile.update({
               where: { username },
               data: { profileImageUrl: publicUrl },
             });

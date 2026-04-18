@@ -32,7 +32,7 @@ async function main() {
     if (username === contextUsername) continue; // Already handled by main scrape
 
     // Check if we already have it locally and it actually exists on disk
-    const account = await prisma.account.findUnique({ where: { username } });
+    const account = await prisma.igProfile.findUnique({ where: { username } });
     const isLocal = account?.profileImageUrl?.startsWith('/content/');
     let fileExists = false;
     if (isLocal && account?.profileImageUrl) {

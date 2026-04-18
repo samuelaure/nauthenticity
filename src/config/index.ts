@@ -22,6 +22,7 @@ export const config = {
     zazu: env.ZAZU_URL,
   },
   nauServiceKey: env.NAU_SERVICE_KEY,
+  jwtSecret: env.JWT_SECRET,
   paths: {
     temp: './temp',
     storage: './storage',

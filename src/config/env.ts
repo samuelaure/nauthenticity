@@ -12,6 +12,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1),
   TRANSCRIPTION_URL: z.string().url().optional(),
   NAU_SERVICE_KEY: z.string().default('development_key'),
+  JWT_SECRET: z.string().default('changeme'),
   ZAZU_URL: z.string().default('http://zazu:3000'),
 });
 

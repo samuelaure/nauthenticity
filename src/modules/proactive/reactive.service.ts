@@ -15,7 +15,7 @@ export const generateReactiveComments = async (
   );
 
   // 1. Fetch Brand Context
-  const brand = await prisma.brandConfig.findUnique({
+  const brand = await prisma.brand.findUnique({
     where: { id: brandId },
   });
   if (!brand) throw new Error('Brand not found');

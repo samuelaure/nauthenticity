@@ -2,7 +2,7 @@ import { config } from '../../config';
 import { logger } from '../../utils/logger';
 
 export interface ProactiveSuggestionPayload {
-  userId: string;
+  workspaceId: string;
   brandId: string;
   brandName: string;
   targetUsername: string;
@@ -14,7 +14,7 @@ export interface ProactiveSuggestionPayload {
 
 export const dispatchToZazu = async (payload: ProactiveSuggestionPayload) => {
   logger.info(
-    `[ZazuDispatcher] Dispatching suggestion for brand ${payload.brandName} (User: ${payload.userId})...`,
+    `[ZazuDispatcher] Dispatching suggestion for brand ${payload.brandName} (Workspace: ${payload.workspaceId})...`,
   );
 
   try {

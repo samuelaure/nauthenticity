@@ -329,7 +329,7 @@ const handleProfileSyncBatch = async (
 
         const imgUrl = profile.profilePicUrlHD || profile.profilePicUrl;
 
-        await prisma.account.updateMany({
+        await prisma.igProfile.updateMany({
           where: { username: profile.username },
           data: { profileImageUrl: imgUrl },
         });

@@ -11,7 +11,7 @@ async function main() {
   const contextUsername = 'karenexplora';
   logger.info(`Checking profile picture for main account: ${contextUsername}`);
 
-  const account = await prisma.account.findUnique({ where: { username: contextUsername } });
+  const account = await prisma.igProfile.findUnique({ where: { username: contextUsername } });
 
   if (account && account.profileImageUrl) {
     const p = account.profileImageUrl.replace('/content/', '');
@@ -54,9 +54,9 @@ async function main() {
 
   for (const username of usernames) {
     if (username === contextUsername) continue;
-    const collAccount = await prisma.account.findUnique({ where: { username } });
-    if (collAccount?.profileImageUrl?.startsWith('/content/')) {
-      const p = collAccount.profileImageUrl.replace('/content/', '');
+    const collProfile = await prisma.igProfile.findUnique({ where: { username } });
+    if (collProfile?.profileImageUrl?.startsWith('/content/')) {
+      const p = collProfile.profileImageUrl.replace('/content/', '');
       const fullPath = path.join('/app/storage', p);
       if (!fs.existsSync(fullPath)) {
         logger.warn(`Collaborator profile missing: ${username}. Refetching...`);
