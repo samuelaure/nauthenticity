@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.5.2](https://github.com/samuelaure/nauthenticity/compare/v1.5.1...v1.5.2) (2026-04-18)
+
+
+### Features
+
+* **database:** add migration for synthesis engine and mechanical tracking ([54eee04](https://github.com/samuelaure/nauthenticity/commit/54eee04ba8c5d1de3015522534ce32af6e42799a))
+
 ### [1.5.1](https://github.com/samuelaure/nauthenticity/compare/v1.5.0...v1.5.1) (2026-04-17)
 
 
