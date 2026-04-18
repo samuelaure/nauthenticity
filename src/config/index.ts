@@ -4,6 +4,7 @@ dotenv.config();
 import { env } from './env';
 
 export const config = {
+  env,
   port: env.PORT,
   databaseUrl: env.DATABASE_URL,
   redis: {
