@@ -13,18 +13,18 @@ model Post {
   instagramId     String?  @unique
   instagramUrl    String   @unique
   username        String?
-  account         Account? @relation(fields: [username], references: [username])
+  igProfile       IgProfile? @relation(fields: [username], references: [username])
   caption         String?
-  originalCaption String?  // Stores original scraped caption if edited
+  originalCaption String?
   postedAt        DateTime
   likes           Int      @default(0)
   comments        Int      @default(0)
   views           Int?
   engagementScore Float?
-  
-  collaborators   Json?    // Stores collaborator info { username, profilePicUrl, role? }[]
-  intelligence    Json?    // Stores extracted hooks, pillars, and CTA
-  
+
+  collaborators   Json?
+  intelligence    Json?
+
   runId           String?
   run             ScrapingRun? @relation(fields: [runId], references: [id])
 
@@ -32,18 +32,18 @@ model Post {
   transcripts     Transcript[]
   feedbacks       CommentFeedback[]
   inspoItems      InspoItem[]
-  
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([username])
 }
 
-model Account {
+model IgProfile {
   username        String   @id
   profileImageUrl String?
   lastScrapedAt   DateTime @default(now())
-  
+
   posts           Post[]
   brandTargets    BrandTarget[]
 }
@@ -53,13 +53,13 @@ model ScrapingRun {
   username    String
   actorRunId  String?  @unique
   datasetId   String?
-  rawData     Json?    // Optional: store full JSON result for 24h fallback
-  status      String   @default("completed") // "pending", "completed", "failed"
-  phase       String   @default("finished")  // "scraping", "downloading", "optimizing", "visualizing", "profiling", "transcribing", "finished"
+  rawData     Json?
+  status      String   @default("completed")
+  phase       String   @default("finished")
   isPaused    Boolean  @default(false)
-  
+
   posts       Post[]
-  
+
   createdAt   DateTime @default(now())
 }
 
@@ -67,10 +67,10 @@ model Media {
   id          String   @id @default(uuid())
   postId      String
   post        Post     @relation(fields: [postId], references: [id])
-  type        String   // "video" | "image"
-  url         String?  // Original source URL (needed for resume)
-  storageUrl    String   // Local path or R2 URL
-  thumbnailUrl  String?  // Local path for fast preview
+  type        String
+  url         String?
+  storageUrl    String
+  thumbnailUrl  String?
   duration      Float?
   index       Int      @default(0)
 
@@ -88,9 +88,9 @@ model Transcript {
   media       Media?   @relation(fields: [mediaId], references: [id])
 
   text        String
-  originalText String? // Stores original Whisper text if edited
-  json        Json?    // Full Whisper response with timestamps
-  
+  originalText String?
+  json        Json?
+
   createdAt    DateTime @default(now())
   embedding    Embedding?
 }
@@ -104,23 +104,23 @@ model Embedding {
   createdAt    DateTime   @default(now())
 }
 
-model BrandConfig {
+model Brand {
   id               String   @id @default(uuid())
-  userId           String   // Telegram ID del usuario naŭ
+  workspaceId      String   // Platform workspace ID from 9naŭ
   brandName        String
-  voicePrompt      String   @db.Text  // Brand DNA canónico — Level 1 del prompt
-  commentStrategy  String?  @db.Text  // Intención global de comentarios — Level 2
-  suggestionsCount Int      @default(3) // Cuántas sugerencias generar (configurable)
+  voicePrompt      String   @db.Text  // Brand DNA — primary personality prompt
+  commentStrategy  String?  @db.Text
+  suggestionsCount Int      @default(3)
 
-  // Ventana de actividad (sincronizada desde Zazŭ)
-  windowStart      String?             // "HH:MM" — inicio de ventana activa del usuario
-  windowEnd        String?             // "HH:MM" — fin de ventana activa del usuario
+  windowStart      String?
+  windowEnd        String?
   timezone         String   @default("UTC")
 
   isActive         Boolean  @default(true)
+  isDeleted        Boolean  @default(false)
+  deletedAt        DateTime?
 
-  // Phase 11: Mechanical synthesis tracking
-  inspoRequestCount Int     @default(0)  // Increments on each /digest request; drives synthesis cadence
+  inspoRequestCount Int     @default(0)
 
   targets          BrandTarget[]
   feedbacks        CommentFeedback[]
@@ -132,24 +132,24 @@ model BrandConfig {
 }
 
 model BrandSynthesis {
-  id           String      @id @default(uuid())
+  id           String  @id @default(uuid())
   brandId      String
-  brand        BrandConfig @relation(fields: [brandId], references: [id], onDelete: Cascade)
-  type         String      // "global" | "recent"
-  content      String      @db.Text  // The synthesized creative direction text
-  attachedUrls Json        @default("[]")  // String[] — post URLs that heavily influenced this synthesis
-  createdAt    DateTime    @default(now())
+  brand        Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  type         String
+  content      String  @db.Text
+  attachedUrls Json    @default("[]")
+  createdAt    DateTime @default(now())
 
   @@index([brandId, type])
 }
 
 model BrandTarget {
-  id               String       @id @default(uuid())
+  id               String    @id @default(uuid())
   brandId          String
-  brand            BrandConfig  @relation(fields: [brandId], references: [id])
+  brand            Brand     @relation(fields: [brandId], references: [id])
   username         String
-  account          Account      @relation(fields: [username], references: [username])
-  profileStrategy  String?      @db.Text  // Estrategia específica para este perfil — Level 3
+  igProfile        IgProfile @relation(fields: [username], references: [username])
+  profileStrategy  String?   @db.Text
 
   createdAt        DateTime @default(now())
 
@@ -157,29 +157,29 @@ model BrandTarget {
 }
 
 model CommentFeedback {
-  id           String       @id @default(uuid())
+  id           String  @id @default(uuid())
   brandId      String
-  brand        BrandConfig  @relation(fields: [brandId], references: [id])
+  brand        Brand   @relation(fields: [brandId], references: [id])
   postId       String
-  post         Post         @relation(fields: [postId], references: [id])
-  commentText  String       @db.Text  // Sugerencia elegida por el usuario (isSelected=true) o JSON de sugerencias (isSelected=false)
-  isSelected   Boolean      @default(false) // true = el usuario confirmó esta sugerencia; false = registro optimista de dedup
-  sentAt       DateTime     @default(now())
+  post         Post    @relation(fields: [postId], references: [id])
+  commentText  String  @db.Text
+  isSelected   Boolean @default(false)
+  sentAt       DateTime @default(now())
 }
 
 model InspoItem {
-  id              String      @id @default(uuid())
+  id              String  @id @default(uuid())
   brandId         String
-  brand           BrandConfig @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand           Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
   postId          String?
-  post            Post?       @relation(fields: [postId], references: [id])
-  type            String      // "inspo" or "replicate"
-  note            String?     @db.Text
-  status          String      @default("pending") // "pending", "processed", "used"
-  extractedHook   String?     @db.Text
+  post            Post?   @relation(fields: [postId], references: [id])
+  type            String
+  note            String? @db.Text
+  status          String  @default("pending")
+  extractedHook   String? @db.Text
   extractedTheme  String?
-  adaptedScript   String?     @db.Text // For "replicate" type — brand-adapted script
-  injectedContext String?     @db.Text // Additional data (strategy docs, etc.)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  adaptedScript   String? @db.Text
+  injectedContext String? @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
