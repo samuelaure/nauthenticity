@@ -14,6 +14,11 @@ const envSchema = z.object({
   NAU_SERVICE_KEY: z.string().default('development_key'),
   JWT_SECRET: z.string().default('changeme'),
   ZAZU_URL: z.string().default('http://zazu:3000'),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_ENDPOINT: z.string().url().optional(),
+  R2_BUCKET_NAME: z.string().optional(),
+  R2_PUBLIC_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

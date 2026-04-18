@@ -8,6 +8,16 @@ import { pipeline } from 'stream/promises';
 import { createWriteStream } from 'fs';
 import { logContextStorage } from '../utils/context';
 import { computeQueue } from './compute.queue';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+
+const r2Client = config.env.R2_ENDPOINT ? new S3Client({
+  endpoint: config.env.R2_ENDPOINT,
+  region: 'auto',
+  credentials: {
+      accessKeyId: config.env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: config.env.R2_SECRET_ACCESS_KEY!,
+  },
+}) : null;
 
 interface ProcessMediaData {
   postId: string;
@@ -56,9 +66,11 @@ export const downloadWorker = new Worker(
         ensureDir(config.paths.temp);
 
         const fileExt = type === 'video' ? 'mp4' : 'jpg';
-        const finalFilename = `${mediaId}.${fileExt}`;
-        const finalPath = path.join(userDir, finalFilename);
-        const publicUrl = `/content/${username}/posts/${finalFilename}`;
+        const storageKey = `content/${username}/posts/${mediaId}.${fileExt}`;
+        const finalPath = path.join(userDir, `${mediaId}.${fileExt}`);
+        const publicUrl = config.env.R2_PUBLIC_URL 
+          ? `${config.env.R2_PUBLIC_URL}/${storageKey}`
+          : `/content/${username}/posts/${mediaId}.${fileExt}`;
 
         const tempFilePath = path.join(
           config.paths.temp,
@@ -75,54 +87,27 @@ export const downloadWorker = new Worker(
             }
           }
 
-          if (!fs.existsSync(finalPath)) {
-            // 1. Download to temp
-            logger.info(`[DownloadWorker] Fetching ${url} for @${username}`);
+          if (r2Client && config.env.R2_BUCKET_NAME) {
+             // 1. Download to memory or temp stream
+             const response = await fetch(url);
+             if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+             const buffer = Buffer.from(await response.arrayBuffer());
 
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 120 * 1000); // 2 minute timeout
-
-            const response = await fetch(url, {
-              signal: controller.signal as any,
-              headers: {
-                'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
-              },
-            });
-            clearTimeout(timeout);
-            if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const writeStream = createWriteStream(tempFilePath);
-            const totalSize = Number(response.headers.get('content-length')) || 0;
-            let downloadedBytes = 0;
-
-            if (response.body) {
-              const reader = response.body.getReader();
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                downloadedBytes += value.length;
-                writeStream.write(value);
-
-                if (totalSize > 0) {
-                  const progress = Math.round((downloadedBytes / totalSize) * 100);
-                  await job.updateProgress({
-                    progress,
-                    step: `Downloading...`,
-                    mediaId,
-                    postId,
-                    currentItem: { username, type, postedAt: '(downloading)' },
-                  });
-                }
-              }
-              writeStream.end();
-            }
-
-            // 2. Atomic rename to final path
-            atomicMove(tempFilePath, finalPath);
+             // 2. Upload to R2
+             await r2Client.send(new PutObjectCommand({
+               Bucket: config.env.R2_BUCKET_NAME,
+               Key: storageKey,
+               Body: buffer,
+               ContentType: type === 'video' ? 'video/mp4' : 'image/jpeg',
+             }));
           } else {
-            logger.info(`[DownloadWorker] File already exists at final path, skipping download.`);
+            // Fallback to local storage (existing logic)
+            if (!fs.existsSync(finalPath)) {
+              const response = await fetch(url);
+              if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+              await pipeline(response.body as any, createWriteStream(tempFilePath));
+              atomicMove(tempFilePath, finalPath);
+            }
           }
 
           // 3. Update DB
@@ -177,16 +162,32 @@ export const downloadWorker = new Worker(
         ensureDir(profilesDir);
 
         const ext = path.extname(new URL(url).pathname) || '.jpg';
-        const finalFilename = `${username}${ext}`;
-        const finalPath = path.join(profilesDir, finalFilename);
-        const publicUrl = `/content/${contextUsername}/profiles/${finalFilename}`;
+        const storageKey = `content/${contextUsername}/profiles/${username}${ext}`;
+        const finalPath = path.join(profilesDir, `${username}${ext}`);
+        const publicUrl = config.env.R2_PUBLIC_URL 
+          ? `${config.env.R2_PUBLIC_URL}/${storageKey}`
+          : `/content/${contextUsername}/profiles/${username}${ext}`;
 
         try {
-          if (!fs.existsSync(finalPath)) {
+          if (r2Client && config.env.R2_BUCKET_NAME) {
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await pipeline(response.body as any, createWriteStream(finalPath));
+            const buffer = Buffer.from(await response.arrayBuffer());
+
+            await r2Client.send(new PutObjectCommand({
+              Bucket: config.env.R2_BUCKET_NAME,
+              Key: storageKey,
+              Body: buffer,
+              ContentType: 'image/jpeg',
+            }));
+          } else {
+            // Fallback
+            if (!fs.existsSync(finalPath)) {
+              const response = await fetch(url);
+              if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await pipeline(response.body as any, createWriteStream(finalPath));
+            }
           }
 
           // If this is the profile pic of the account being scraped, update its main profile URL
