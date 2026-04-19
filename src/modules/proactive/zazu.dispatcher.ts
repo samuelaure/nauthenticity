@@ -23,7 +23,7 @@ export const dispatchToZazu = async (payload: ProactiveSuggestionPayload) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.nauServiceKey}`,
+        'x-nau-service-key': config.nauServiceKey,
       },
       body: JSON.stringify(payload),
     });

@@ -12,9 +12,9 @@ import { verifyJwt } from '../../utils/jwt';
 // ---------------------------------------------------------------------------
 
 const authenticateService = (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
-  const authHeader = request.headers.authorization;
-  if (!authHeader || authHeader !== `Bearer ${config.nauServiceKey}`) {
-    reply.status(401).send({ error: 'Unauthorized. Invalid or missing NAU_SERVICE_KEY.' });
+  const serviceKey = request.headers['x-nau-service-key'];
+  if (!serviceKey || serviceKey !== config.nauServiceKey) {
+    reply.status(401).send({ error: 'Unauthorized. Invalid or missing x-nau-service-key.' });
     return;
   }
   done();

@@ -9,9 +9,9 @@ import { getDigest } from './synthesis.service';
 // Auth middleware — NAU_SERVICE_KEY
 // ---------------------------------------------------------------------------
 const authenticate = (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
-  const authHeader = request.headers.authorization;
-  if (!authHeader || authHeader !== `Bearer ${config.nauServiceKey}`) {
-    reply.status(401).send({ error: 'Unauthorized. Invalid or missing NAU_SERVICE_KEY.' });
+  const serviceKey = request.headers['x-nau-service-key'];
+  if (!serviceKey || serviceKey !== config.nauServiceKey) {
+    reply.status(401).send({ error: 'Unauthorized. Invalid or missing x-nau-service-key.' });
     return;
   }
   done();
@@ -233,7 +233,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.nauServiceKey}`,
+          'x-nau-service-key': config.nauServiceKey,
         },
         body: JSON.stringify({
           brandId,
