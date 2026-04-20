@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.0](https://github.com/samuelaure/nauthenticity/compare/v1.5.9...v1.7.0) (2026-04-20)
+
+
+### Features
+
+* **db:** fresh init migration ([c56510d](https://github.com/samuelaure/nauthenticity/commit/c56510df73bff55f3d64a1e02e295f6d3463bb8a))
+
 ## [1.6.0](https://github.com/samuelaure/nauthenticity/compare/v1.5.9...v1.6.0) (2026-04-20)
 
 
