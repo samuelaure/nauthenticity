@@ -74,14 +74,13 @@ async function runSynthesisLLM(
 
 async function generateGlobalSynthesis(
   brandId: string,
-  brandName: string,
   brandDNA: string,
   previousGlobal: string | null,
   recentSynthesisTexts: string[],
 ): Promise<BrandDigest> {
-  logger.info(`[SynthesisService] Generating Global Synthesis for brand ${brandName}`);
+  logger.info(`[SynthesisService] Generating Global Synthesis for brand ${brandId}`);
 
-  const systemPrompt = `You are a Strategic Brand Director for "${brandName}".
+  const systemPrompt = `You are a Strategic Brand Director for brand ID "${brandId}".
 Your task is to produce a **Global Synthesis** — a long-term creative strategic direction for the brand.
 
 This synthesis will guide all future content creation. It should be:
@@ -105,7 +104,7 @@ Return the synthesis text, the Instagram URLs of posts that most influenced this
     });
   }
 
-  userContent += `Synthesize the above into a new, evolved Global creative direction for "${brandName}".`;
+  userContent += `Synthesize the above into a new, evolved Global creative direction for "${brandId}".`;
 
   const result = await runSynthesisLLM(systemPrompt, userContent);
   return { content: result.content, attachedUrls: result.attachedUrls };
@@ -122,16 +121,15 @@ interface NewPost {
 
 async function generateRecentSynthesis(
   brandId: string,
-  brandName: string,
   brandDNA: string,
   globalSynthesis: string | null,
   previousRecent: string | null,
   previousRecentTexts: string[],
   newPosts: NewPost[],
 ): Promise<BrandDigest> {
-  logger.info(`[SynthesisService] Generating Recent Synthesis for brand ${brandName}`);
+  logger.info(`[SynthesisService] Generating Recent Synthesis for brand ${brandId}`);
 
-  const systemPrompt = `You are a Trend Analyst and Creative Strategist for "${brandName}".
+  const systemPrompt = `You are a Trend Analyst and Creative Strategist for brand ID "${brandId}".
 Your task is to produce a **Recent Synthesis** — a fresh, current creative digest that reflects the latest creative energy and inspiration.
 
 This synthesis should be:
@@ -171,7 +169,7 @@ Identify which specific post URLs most influenced this direction and include the
     userContent += `## NOTE\nNo new inspiration posts since the last synthesis. Evolve the direction from previous syntheses.\n\n`;
   }
 
-  userContent += `Generate a fresh Recent Synthesis for "${brandName}" that reflects current creative momentum.`;
+  userContent += `Generate a fresh Recent Synthesis for "${brandId}" that reflects current creative momentum.`;
 
   const result = await runSynthesisLLM(systemPrompt, userContent);
   return { content: result.content, attachedUrls: result.attachedUrls };
@@ -263,7 +261,6 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
 
     const globalResult = await generateGlobalSynthesis(
       brandId,
-      brand.brandId,
       brand.voicePrompt,
       globalSynthesis?.content ?? null,
       recentTexts,
@@ -291,7 +288,6 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
 
   const recentResult = await generateRecentSynthesis(
     brandId,
-    brand.brandId,
     brand.voicePrompt,
     currentGlobalContent,
     recentSyntheses[0]?.content ?? null,

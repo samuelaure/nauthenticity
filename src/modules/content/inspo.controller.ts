@@ -72,7 +72,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
       });
 
       logger.info(
-        `[InspoBase] Created ${type} item for brand ${brand.brandName} (ID: ${inspoItem.id})`,
+        `[InspoBase] Created ${type} item for brand ${brandId} (ID: ${inspoItem.id})`,
       );
       return reply.status(201).send(inspoItem);
     } catch (e: unknown) {
@@ -100,7 +100,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
     const items = await prisma.inspoItem.findMany({
       where,
       include: {
-        brand: { select: { brandName: true } },
+        brand: { select: { workspaceId: true } },
         post: { select: { instagramUrl: true, caption: true, username: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -117,7 +117,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
     const item = await prisma.inspoItem.findUnique({
       where: { id },
       include: {
-        brand: { select: { brandName: true, voicePrompt: true } },
+        brand: { select: { voicePrompt: true } },
         post: {
           include: {
             media: true,
@@ -140,7 +140,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
     const item = await prisma.inspoItem.findUnique({
       where: { id },
       include: {
-        brand: { select: { brandName: true, voicePrompt: true } },
+        brand: { select: { voicePrompt: true } },
         post: {
           include: {
             transcripts: { select: { text: true } },
@@ -237,7 +237,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
         },
         body: JSON.stringify({
           brandId,
-          brandName: brand.brandName,
+          brandName: brandId,
           postUrl,
           media: post.media,
           caption: post.caption,
@@ -251,7 +251,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
         return reply.status(502).send({ error: 'Failed to forward to flownaŭ', details: errText });
       }
 
-      logger.info(`[InspoBase] Repost forwarded to flownaŭ for brand ${brand.brandName}`);
+      logger.info(`[InspoBase] Repost forwarded to flownaŭ for brand ${brandId}`);
       return reply.send({ success: true, message: 'Repost forwarded to flownaŭ' });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
