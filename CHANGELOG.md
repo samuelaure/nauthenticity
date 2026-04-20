@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.7.2](https://github.com/samuelaure/nauthenticity/compare/v1.7.1...v1.7.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* **db:** remove BOM from init migration (caused Postgres syntax error) ([85f32f9](https://github.com/samuelaure/nauthenticity/commit/85f32f98a725663641196f6b48b82314fc70be4a))
+
 ### [1.7.1](https://github.com/samuelaure/nauthenticity/compare/v1.7.0...v1.7.1) (2026-04-20)
 
 
