@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.7.1](https://github.com/samuelaure/nauthenticity/compare/v1.7.0...v1.7.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **nauth:** remove deprecated brandName property usage after workspace refactor ([200edbc](https://github.com/samuelaure/nauthenticity/commit/200edbc58aeec8f1303e839644a8a37baa14e8e8))
+
 ## [1.7.0](https://github.com/samuelaure/nauthenticity/compare/v1.5.9...v1.7.0) (2026-04-20)
 
 
