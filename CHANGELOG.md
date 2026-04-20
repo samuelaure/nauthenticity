@@ -2,33 +2,36 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-### [1.7.2](https://github.com/samuelaure/nauthenticity/compare/v1.7.1...v1.7.2) (2026-04-20)
+## [1.8.0](https://github.com/samuelaure/nauthenticity/compare/v1.7.2...v1.8.0) (2026-04-20)
 
+
+### Features
+
+* **phase-19:** implement graceful platform-level voice and strategy fallbacks ([5edb201](https://github.com/samuelaure/nauthenticity/commit/5edb201e0ad5314cbd2f8df89bbdfd8aa6a1024c))
+
+### [1.7.2](https://github.com/samuelaure/nauthenticity/compare/v1.7.1...v1.7.2) (2026-04-20)
 
 ### Bug Fixes
 
-* **db:** remove BOM from init migration (caused Postgres syntax error) ([85f32f9](https://github.com/samuelaure/nauthenticity/commit/85f32f98a725663641196f6b48b82314fc70be4a))
+- **db:** remove BOM from init migration (caused Postgres syntax error) ([85f32f9](https://github.com/samuelaure/nauthenticity/commit/85f32f98a725663641196f6b48b82314fc70be4a))
 
 ### [1.7.1](https://github.com/samuelaure/nauthenticity/compare/v1.7.0...v1.7.1) (2026-04-20)
 
-
 ### Bug Fixes
 
-* **nauth:** remove deprecated brandName property usage after workspace refactor ([200edbc](https://github.com/samuelaure/nauthenticity/commit/200edbc58aeec8f1303e839644a8a37baa14e8e8))
+- **nauth:** remove deprecated brandName property usage after workspace refactor ([200edbc](https://github.com/samuelaure/nauthenticity/commit/200edbc58aeec8f1303e839644a8a37baa14e8e8))
 
 ## [1.7.0](https://github.com/samuelaure/nauthenticity/compare/v1.5.9...v1.7.0) (2026-04-20)
 
-
 ### Features
 
-* **db:** fresh init migration ([c56510d](https://github.com/samuelaure/nauthenticity/commit/c56510df73bff55f3d64a1e02e295f6d3463bb8a))
+- **db:** fresh init migration ([c56510d](https://github.com/samuelaure/nauthenticity/commit/c56510df73bff55f3d64a1e02e295f6d3463bb8a))
 
 ## [1.6.0](https://github.com/samuelaure/nauthenticity/compare/v1.5.9...v1.6.0) (2026-04-20)
 
-
 ### Features
 
-* **db:** fresh init migration ([c56510d](https://github.com/samuelaure/nauthenticity/commit/c56510df73bff55f3d64a1e02e295f6d3463bb8a))
+- **db:** fresh init migration ([c56510d](https://github.com/samuelaure/nauthenticity/commit/c56510df73bff55f3d64a1e02e295f6d3463bb8a))
 
 ### [1.5.9](https://github.com/samuelaure/nauthenticity/compare/v1.6.0...v1.5.9) (2026-04-19)
 
@@ -40,35 +43,31 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### [1.5.2](https://github.com/samuelaure/nauthenticity/compare/v1.5.1...v1.5.2) (2026-04-18)
 
-
 ### Features
 
-* **database:** add migration for synthesis engine and mechanical tracking ([54eee04](https://github.com/samuelaure/nauthenticity/commit/54eee04ba8c5d1de3015522534ce32af6e42799a))
+- **database:** add migration for synthesis engine and mechanical tracking ([54eee04](https://github.com/samuelaure/nauthenticity/commit/54eee04ba8c5d1de3015522534ce32af6e42799a))
 
 ### [1.5.1](https://github.com/samuelaure/nauthenticity/compare/v1.5.0...v1.5.1) (2026-04-17)
 
-
 ### Bug Fixes
 
-* **synthesis:** correct OpenAI SDK usage and casting issues found in production build ([4a5568f](https://github.com/samuelaure/nauthenticity/commit/4a5568fe37b56dff4cc82d830671f1efbc76aa5b))
+- **synthesis:** correct OpenAI SDK usage and casting issues found in production build ([4a5568f](https://github.com/samuelaure/nauthenticity/commit/4a5568fe37b56dff4cc82d830671f1efbc76aa5b))
 
 ## [1.5.0](https://github.com/samuelaure/nauthenticity/compare/v1.4.3...v1.5.0) (2026-04-17)
 
-
 ### Features
 
-* **ci:** implement safe sequential deployment and disk health monitoring ([91d7533](https://github.com/samuelaure/nauthenticity/commit/91d7533973b65da47a1cffc7991a616511d38410))
-* **db:** add BrandSynthesis and request tracking for mechanical ideation ([8610123](https://github.com/samuelaure/nauthenticity/commit/86101234b3f17c015d58ec90bc8c656bc0718ede))
-* **ideation:** implement mechanical content synthesis engine and digest endpoint ([ed0a238](https://github.com/samuelaure/nauthenticity/commit/ed0a238697c2fd811673cd049587343aebe85a47))
+- **ci:** implement safe sequential deployment and disk health monitoring ([91d7533](https://github.com/samuelaure/nauthenticity/commit/91d7533973b65da47a1cffc7991a616511d38410))
+- **db:** add BrandSynthesis and request tracking for mechanical ideation ([8610123](https://github.com/samuelaure/nauthenticity/commit/86101234b3f17c015d58ec90bc8c656bc0718ede))
+- **ideation:** implement mechanical content synthesis engine and digest endpoint ([ed0a238](https://github.com/samuelaure/nauthenticity/commit/ed0a238697c2fd811673cd049587343aebe85a47))
 
 ## [1.5.0](https://github.com/samuelaure/nauthenticity/compare/v1.4.3...v1.5.0) (2026-04-17)
 
-
 ### Features
 
-* **ci:** implement safe sequential deployment and disk health monitoring ([91d7533](https://github.com/samuelaure/nauthenticity/commit/91d7533973b65da47a1cffc7991a616511d38410))
-* **db:** add BrandSynthesis and request tracking for mechanical ideation ([8610123](https://github.com/samuelaure/nauthenticity/commit/86101234b3f17c015d58ec90bc8c656bc0718ede))
-* **ideation:** implement mechanical content synthesis engine and digest endpoint ([ed0a238](https://github.com/samuelaure/nauthenticity/commit/ed0a238697c2fd811673cd049587343aebe85a47))
+- **ci:** implement safe sequential deployment and disk health monitoring ([91d7533](https://github.com/samuelaure/nauthenticity/commit/91d7533973b65da47a1cffc7991a616511d38410))
+- **db:** add BrandSynthesis and request tracking for mechanical ideation ([8610123](https://github.com/samuelaure/nauthenticity/commit/86101234b3f17c015d58ec90bc8c656bc0718ede))
+- **ideation:** implement mechanical content synthesis engine and digest endpoint ([ed0a238](https://github.com/samuelaure/nauthenticity/commit/ed0a238697c2fd811673cd049587343aebe85a47))
 
 ### [1.4.2](https://github.com/samuelaure/nauthenticity/compare/v1.4.1...v1.4.2) (2026-04-10)
 
