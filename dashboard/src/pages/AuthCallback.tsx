@@ -19,7 +19,14 @@ export function AuthCallback() {
   }, [navigate]);
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
       <p style={{ color: 'var(--text-secondary, #888)' }}>Iniciando sesión…</p>
     </div>
   );

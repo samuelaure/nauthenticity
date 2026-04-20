@@ -10,14 +10,16 @@ import { logContextStorage } from '../utils/context';
 import { computeQueue } from './compute.queue';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-const r2Client = config.env.R2_ENDPOINT ? new S3Client({
-  endpoint: config.env.R2_ENDPOINT,
-  region: 'auto',
-  credentials: {
-      accessKeyId: config.env.R2_ACCESS_KEY_ID!,
-      secretAccessKey: config.env.R2_SECRET_ACCESS_KEY!,
-  },
-}) : null;
+const r2Client = config.env.R2_ENDPOINT
+  ? new S3Client({
+      endpoint: config.env.R2_ENDPOINT,
+      region: 'auto',
+      credentials: {
+        accessKeyId: config.env.R2_ACCESS_KEY_ID!,
+        secretAccessKey: config.env.R2_SECRET_ACCESS_KEY!,
+      },
+    })
+  : null;
 
 interface ProcessMediaData {
   postId: string;
@@ -68,7 +70,7 @@ export const downloadWorker = new Worker(
         const fileExt = type === 'video' ? 'mp4' : 'jpg';
         const storageKey = `content/${username}/posts/${mediaId}.${fileExt}`;
         const finalPath = path.join(userDir, `${mediaId}.${fileExt}`);
-        const publicUrl = config.env.R2_PUBLIC_URL 
+        const publicUrl = config.env.R2_PUBLIC_URL
           ? `${config.env.R2_PUBLIC_URL}/${storageKey}`
           : `/content/${username}/posts/${mediaId}.${fileExt}`;
 
@@ -88,18 +90,20 @@ export const downloadWorker = new Worker(
           }
 
           if (r2Client && config.env.R2_BUCKET_NAME) {
-             // 1. Download to memory or temp stream
-             const response = await fetch(url);
-             if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
-             const buffer = Buffer.from(await response.arrayBuffer());
+            // 1. Download to memory or temp stream
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
+            const buffer = Buffer.from(await response.arrayBuffer());
 
-             // 2. Upload to R2
-             await r2Client.send(new PutObjectCommand({
-               Bucket: config.env.R2_BUCKET_NAME,
-               Key: storageKey,
-               Body: buffer,
-               ContentType: type === 'video' ? 'video/mp4' : 'image/jpeg',
-             }));
+            // 2. Upload to R2
+            await r2Client.send(
+              new PutObjectCommand({
+                Bucket: config.env.R2_BUCKET_NAME,
+                Key: storageKey,
+                Body: buffer,
+                ContentType: type === 'video' ? 'video/mp4' : 'image/jpeg',
+              }),
+            );
           } else {
             // Fallback to local storage (existing logic)
             if (!fs.existsSync(finalPath)) {
@@ -164,7 +168,7 @@ export const downloadWorker = new Worker(
         const ext = path.extname(new URL(url).pathname) || '.jpg';
         const storageKey = `content/${contextUsername}/profiles/${username}${ext}`;
         const finalPath = path.join(profilesDir, `${username}${ext}`);
-        const publicUrl = config.env.R2_PUBLIC_URL 
+        const publicUrl = config.env.R2_PUBLIC_URL
           ? `${config.env.R2_PUBLIC_URL}/${storageKey}`
           : `/content/${contextUsername}/profiles/${username}${ext}`;
 
@@ -174,12 +178,14 @@ export const downloadWorker = new Worker(
             if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
             const buffer = Buffer.from(await response.arrayBuffer());
 
-            await r2Client.send(new PutObjectCommand({
-              Bucket: config.env.R2_BUCKET_NAME,
-              Key: storageKey,
-              Body: buffer,
-              ContentType: 'image/jpeg',
-            }));
+            await r2Client.send(
+              new PutObjectCommand({
+                Bucket: config.env.R2_BUCKET_NAME,
+                Key: storageKey,
+                Body: buffer,
+                ContentType: 'image/jpeg',
+              }),
+            );
           } else {
             // Fallback
             if (!fs.existsSync(finalPath)) {

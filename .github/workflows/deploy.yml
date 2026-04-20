@@ -91,6 +91,6 @@ jobs:
 
             # Give the database a moment to fully initialize after recreation
             sleep 5
-            
+
             # Run migrations
             docker compose exec -T app npx prisma migrate deploy --schema src/db/schema.prisma

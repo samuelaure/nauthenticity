@@ -71,9 +71,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
         },
       });
 
-      logger.info(
-        `[InspoBase] Created ${type} item for brand ${brandId} (ID: ${inspoItem.id})`,
-      );
+      logger.info(`[InspoBase] Created ${type} item for brand ${brandId} (ID: ${inspoItem.id})`);
       return reply.status(201).send(inspoItem);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
