@@ -1,6 +1,5 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { zodResponseFormat } from 'openai/helpers/zod';
 import { prisma } from '../../db/prisma';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
