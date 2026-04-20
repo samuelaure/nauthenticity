@@ -45,8 +45,8 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
     try {
       const { brandId, postUrl, postId, note, type } = InspoCreateSchema.parse(request.body);
 
-      // Verify brand exists
-      const brand = await prisma.brand.findUnique({ where: { id: brandId } });
+      // Verify brand intelligence record exists
+      const brand = await prisma.brandIntelligence.findUnique({ where: { brandId } });
       if (!brand) return reply.status(404).send({ error: 'Brand not found' });
 
       // Resolve post reference
@@ -190,7 +190,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
       return reply.status(400).send({ error: 'Missing required query parameter: brandId' });
     }
 
-    const brand = await prisma.brand.findUnique({ where: { id: brandId } });
+    const brand = await prisma.brandIntelligence.findUnique({ where: { brandId } });
     if (!brand) return reply.status(404).send({ error: 'Brand not found' });
 
     try {
@@ -212,7 +212,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
       return reply.status(400).send({ error: 'Missing required fields: brandId, postUrl' });
     }
 
-    const brand = await prisma.brand.findUnique({ where: { id: brandId } });
+    const brand = await prisma.brandIntelligence.findUnique({ where: { brandId } });
     if (!brand) return reply.status(404).send({ error: 'Brand not found' });
 
     // Find the post

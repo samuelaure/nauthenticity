@@ -14,11 +14,11 @@ export const generateReactiveComments = async (
     `[ReactiveService] Starting reactive generation for ${targetUrl} (Brand: ${brandId})`,
   );
 
-  // 1. Fetch Brand Context
-  const brand = await prisma.brand.findUnique({
-    where: { id: brandId },
+  // 1. Fetch Brand Intelligence
+  const intelligence = await prisma.brandIntelligence.findUnique({
+    where: { brandId },
   });
-  if (!brand) throw new Error('Brand not found');
+  if (!intelligence) throw new Error('Brand intelligence not found');
 
   // 2. Resolve Post
   let post = await prisma.post.findUnique({
@@ -31,7 +31,6 @@ export const generateReactiveComments = async (
     const scraped = await scrapePostByUrl(targetUrl);
     if (!scraped) throw new Error('Failed to scrape post');
 
-    // Minimal ingestion (no media download for speed)
     post = await prisma.post.upsert({
       where: { instagramUrl: targetUrl },
       update: {},
@@ -48,12 +47,12 @@ export const generateReactiveComments = async (
     });
   }
 
-  // 3. Fetch Profile Strategy (Level 3)
+  // 3. Fetch Profile Strategy
   const target = await prisma.brandTarget.findUnique({
     where: { brandId_username: { brandId, username: post.username || '' } },
   });
 
-  // 4. Fetch Last Selected Comments (Level 4)
+  // 4. Fetch Last Selected Comments
   const lastFeedbacks = await prisma.commentFeedback.findMany({
     where: { brandId, isSelected: true },
     orderBy: { sentAt: 'desc' },
@@ -69,9 +68,9 @@ export const generateReactiveComments = async (
       targetUsername: post.username || 'unknown',
     },
     brand: {
-      voicePrompt: brand.voicePrompt,
-      commentStrategy: brand.commentStrategy,
-      suggestionsCount: brand.suggestionsCount,
+      voicePrompt: intelligence.voicePrompt,
+      commentStrategy: intelligence.commentStrategy,
+      suggestionsCount: intelligence.suggestionsCount,
     },
     profileStrategy: target?.profileStrategy || null,
     lastSelectedComments: lastFeedbacks.map((f) => f.commentText),
@@ -79,7 +78,7 @@ export const generateReactiveComments = async (
 
   const comments = await generateCommentSuggestions(params);
 
-  // 6. Log optimistic (unconfirmed) suggestions for dedup context
+  // 6. Log optimistic suggestions for dedup context
   await prisma.commentFeedback.create({
     data: {
       brandId,

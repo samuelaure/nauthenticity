@@ -192,12 +192,11 @@ Identify which specific post URLs most influenced this direction and include the
  */
 export async function getDigest(brandId: string): Promise<BrandDigest> {
   // Atomically increment and read count
-  const brand = await prisma.brand.update({
-    where: { id: brandId },
+  const brand = await prisma.brandIntelligence.update({
+    where: { brandId },
     data: { inspoRequestCount: { increment: 1 } },
     select: {
-      id: true,
-      brandName: true,
+      brandId: true,
       voicePrompt: true,
       inspoRequestCount: true,
     },
@@ -207,7 +206,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
   const shouldGenerate = count % 3 === 0;
 
   logger.info(
-    `[SynthesisService] Digest request #${count} for brand "${brand.brandName}" — shouldGenerate: ${shouldGenerate}`,
+    `[SynthesisService] Digest request #${count} for brand "${brand.brandId}" — shouldGenerate: ${shouldGenerate}`,
   );
 
   if (!shouldGenerate) {
@@ -219,7 +218,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
 
     if (cached) {
       logger.info(
-        `[SynthesisService] Returning cached Recent Synthesis for brand "${brand.brandName}"`,
+        `[SynthesisService] Returning cached Recent Synthesis for brand "${brand.brandId}"`,
       );
       return {
         content: cached.content,
@@ -265,7 +264,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
 
     const globalResult = await generateGlobalSynthesis(
       brandId,
-      brand.brandName,
+      brand.brandId,
       brand.voicePrompt,
       globalSynthesis?.content ?? null,
       recentTexts,
@@ -281,7 +280,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
     });
 
     currentGlobalContent = globalResult.content;
-    logger.info(`[SynthesisService] Global Synthesis created for brand "${brand.brandName}"`);
+    logger.info(`[SynthesisService] Global Synthesis created for brand "${brand.brandId}"`);
   }
 
   // ── Recent Synthesis ──────────────────────────────────────────────────────
@@ -293,7 +292,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
 
   const recentResult = await generateRecentSynthesis(
     brandId,
-    brand.brandName,
+    brand.brandId,
     brand.voicePrompt,
     currentGlobalContent,
     recentSyntheses[0]?.content ?? null,
@@ -310,7 +309,7 @@ export async function getDigest(brandId: string): Promise<BrandDigest> {
     },
   });
 
-  logger.info(`[SynthesisService] Recent Synthesis created for brand "${brand.brandName}"`);
+  logger.info(`[SynthesisService] Recent Synthesis created for brand "${brand.brandId}"`);
 
   return {
     content: synthesis.content,

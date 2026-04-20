@@ -7,13 +7,13 @@ import { dispatchToZazu } from './zazu.dispatcher';
 import { logger } from '../../utils/logger';
 import { prisma } from '../../db/prisma';
 import { toZonedTime } from 'date-fns-tz';
-import type { Brand, BrandTarget, IgProfile } from '@prisma/client';
+import type { BrandIntelligence, BrandTarget, IgProfile } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type BrandWithTargets = Brand & {
+type BrandWithTargets = BrandIntelligence & {
   targets: (BrandTarget & { igProfile: IgProfile })[];
 };
 
@@ -21,7 +21,7 @@ type BrandWithTargets = Brand & {
 // Window logic
 // ---------------------------------------------------------------------------
 
-export function isInWindow(brand: Brand, now: Date): boolean {
+export function isInWindow(brand: BrandIntelligence, now: Date): boolean {
   if (!brand.windowStart || !brand.windowEnd) return false;
 
   const zoned = toZonedTime(now, brand.timezone);
@@ -46,8 +46,7 @@ export function isInWindow(brand: Brand, now: Date): boolean {
 export const runProactiveFanout = async (now: Date = new Date()): Promise<void> => {
   logger.info(`[FanoutProcessor] Starting smart fanout cycle at ${now.toISOString()}...`);
 
-  const allBrands = (await prisma.brand.findMany({
-    where: { isActive: true, isDeleted: false },
+  const allBrands = (await prisma.brandIntelligence.findMany({
     include: {
       targets: { include: { igProfile: true } },
     },
@@ -71,7 +70,7 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
         if (!eligibleTargets.has(target.username)) {
           eligibleTargets.set(target.username, new Set());
         }
-        eligibleTargets.get(target.username)!.add(brand.id);
+        eligibleTargets.get(target.username)!.add(brand.brandId);
       }
     }
   }
@@ -101,7 +100,7 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
     data: { lastScrapedAt: now },
   });
 
-  const brandMap = new Map(allBrands.map((b) => [b.id, b]));
+  const brandMap = new Map(allBrands.map((b) => [b.brandId, b]));
 
   for (const item of scrapedItems) {
     const interestedBrandIds = eligibleTargets.get(item.ownerUsername);
@@ -136,7 +135,7 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
       });
       if (alreadyProcessed) {
         logger.info(
-          `[FanoutProcessor] Skipping already-processed post ${localPost.id} for brand ${brand.brandName}`,
+          `[FanoutProcessor] Skipping already-processed post ${localPost.id} for brand ${brandId}`,
         );
         continue;
       }
@@ -152,7 +151,7 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
       const brandTarget = brand.targets.find((t) => t.username === item.ownerUsername);
 
       logger.info(
-        `[FanoutProcessor] Generating ${brand.suggestionsCount} comment(s) for brand "${brand.brandName}" on @${item.ownerUsername} post ${item.shortCode ?? localPost.id}...`,
+        `[FanoutProcessor] Generating ${brand.suggestionsCount} comment(s) for brand ${brandId} on @${item.ownerUsername}...`,
       );
 
       try {
@@ -176,8 +175,8 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
 
         await dispatchToZazu({
           workspaceId: brand.workspaceId,
-          brandId: brand.id,
-          brandName: brand.brandName,
+          brandId,
+          brandName: brandId, // brand name now lives in 9naŭ — use brandId as fallback label
           targetUsername: item.ownerUsername,
           postUrl: item.url,
           postThumbnailUrl: item.displayUrl ?? '',
@@ -196,7 +195,7 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error(
-          `[FanoutProcessor] Error processing brand "${brand.brandName}" for post ${item.shortCode ?? localPost.id}: ${msg}`,
+          `[FanoutProcessor] Error processing brand ${brandId} for post ${item.shortCode ?? localPost.id}: ${msg}`,
         );
       }
     }
