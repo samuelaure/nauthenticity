@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.8.1](https://github.com/samuelaure/nauthenticity/compare/v1.8.0...v1.8.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **platform:** consolidate sso, infrastructure and intelligence stabilization ([0d3ebdd](https://github.com/samuelaure/nauthenticity/commit/0d3ebdda5b192cc7c8ed5d84a8a844879e9926a1))
+
 ## [1.8.0](https://github.com/samuelaure/nauthenticity/compare/v1.7.2...v1.8.0) (2026-04-20)
 
 
