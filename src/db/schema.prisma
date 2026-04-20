@@ -104,21 +104,24 @@ model Embedding {
   createdAt    DateTime   @default(now())
 }
 
-model Brand {
-  id               String   @id @default(uuid())
-  workspaceId      String   // Platform workspace ID from 9naŭ
-  brandName        String
+/// BrandIntelligence — nauthenticity's domain-specific intelligence layer for a brand.
+/// The core Brand entity (name, isActive) is now owned by 9naŭ.
+/// nauthenticity references brands exclusively via `brandId` (= 9naŭ Brand.id).
+model BrandIntelligence {
+  /// Primary key = 9naŭ Brand.id — no local structural duplication.
+  brandId          String   @id
+
+  /// workspaceId is kept as an operational routing reference for dispatch (not a structural copy).
+  workspaceId      String   @default("")
+
   voicePrompt      String   @db.Text  // Brand DNA — primary personality prompt
   commentStrategy  String?  @db.Text
   suggestionsCount Int      @default(3)
 
   windowStart      String?
   windowEnd        String?
+  /// timezone is an operational delivery-window field, owned by nauthenticity.
   timezone         String   @default("UTC")
-
-  isActive         Boolean  @default(true)
-  isDeleted        Boolean  @default(false)
-  deletedAt        DateTime?
 
   inspoRequestCount Int     @default(0)
 
@@ -134,7 +137,7 @@ model Brand {
 model BrandSynthesis {
   id           String  @id @default(uuid())
   brandId      String
-  brand        Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand        BrandIntelligence @relation(fields: [brandId], references: [brandId], onDelete: Cascade)
   type         String
   content      String  @db.Text
   attachedUrls Json    @default("[]")
@@ -146,7 +149,7 @@ model BrandSynthesis {
 model BrandTarget {
   id               String    @id @default(uuid())
   brandId          String
-  brand            Brand     @relation(fields: [brandId], references: [id])
+  brand            BrandIntelligence @relation(fields: [brandId], references: [brandId])
   username         String
   igProfile        IgProfile @relation(fields: [username], references: [username])
   profileStrategy  String?   @db.Text
@@ -159,7 +162,7 @@ model BrandTarget {
 model CommentFeedback {
   id           String  @id @default(uuid())
   brandId      String
-  brand        Brand   @relation(fields: [brandId], references: [id])
+  brand        BrandIntelligence @relation(fields: [brandId], references: [brandId])
   postId       String
   post         Post    @relation(fields: [postId], references: [id])
   commentText  String  @db.Text
@@ -170,7 +173,7 @@ model CommentFeedback {
 model InspoItem {
   id              String  @id @default(uuid())
   brandId         String
-  brand           Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand           BrandIntelligence @relation(fields: [brandId], references: [brandId], onDelete: Cascade)
   postId          String?
   post            Post?   @relation(fields: [postId], references: [id])
   type            String
