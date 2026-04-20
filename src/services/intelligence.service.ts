@@ -6,6 +6,14 @@ import { logger } from '../utils/logger';
 const openai = new OpenAI({ apiKey: config.openai.apiKey });
 
 // ---------------------------------------------------------------------------
+// Platform-level fallbacks — used when a brand has no configured voice/strategy
+// ---------------------------------------------------------------------------
+
+export const PLATFORM_DEFAULT_VOICE = `You are an authentic, engaging brand on Instagram. Write comments that are genuine, add value to the conversation, and reflect a professional yet approachable personality. Be concise, positive, and relevant to the post's content. Show real interest in the creator's work.`;
+
+export const PLATFORM_DEFAULT_STRATEGY = `General growth strategy: engage meaningfully with content in your niche. Leave thoughtful comments that showcase expertise, spark curiosity, and build community — without being promotional.`;
+
+// ---------------------------------------------------------------------------
 // Post Intelligence Extraction (unchanged)
 // ---------------------------------------------------------------------------
 
@@ -99,12 +107,14 @@ function buildCommentSystemPrompt(params: CommentSuggestionParams): string {
       ` Return your answer as a JSON object: { "comments": ["string1", "string2", ...] }.`,
   );
 
-  // Level 1 — Brand Voice / DNA
-  sections.push(`\n## BRAND VOICE & PERSONALITY\n${brand.voicePrompt.trim()}`);
+  // Level 1 — Brand Voice / DNA (fall back to platform default when empty)
+  const effectiveVoice = brand.voicePrompt?.trim() || PLATFORM_DEFAULT_VOICE;
+  sections.push(`\n## BRAND VOICE & PERSONALITY\n${effectiveVoice}`);
 
-  // Level 2 — Brand Comment Strategy (conditional)
-  if (brand.commentStrategy?.trim()) {
-    sections.push(`\n## BRAND COMMENT STRATEGY (current period)\n${brand.commentStrategy.trim()}`);
+  // Level 2 — Brand Comment Strategy (fall back to platform default when absent)
+  const effectiveStrategy = brand.commentStrategy?.trim() || PLATFORM_DEFAULT_STRATEGY;
+  if (effectiveStrategy) {
+    sections.push(`\n## BRAND COMMENT STRATEGY (current period)\n${effectiveStrategy}`);
   }
 
   // Level 3 — Profile-Specific Strategy (conditional)
