@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getToken } from './auth';
 
 // Sanitize URL to remove accidental quotes, whitespace, or trailing semicolons
 const rawUrl = import.meta.env.VITE_API_URL || '/api';
@@ -6,6 +7,13 @@ export const API_URL = rawUrl.replace(/['";]/g, '').trim();
 
 export const api = axios.create({
   baseURL: API_URL,
+});
+
+// Attach auth token to every request
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) config.headers['Authorization'] = `Bearer ${token}`;
+  return config;
 });
 
 export const getMediaUrl = (url?: string) => {
@@ -104,8 +112,9 @@ export interface QueueStatus {
 }
 
 export const getAccounts = async () => {
-  const { data } = await api.get<Account[]>('/accounts');
-  return data;
+  const { data } = await api.get<{ accounts: Account[] } | Account[]>('/accounts');
+  // Backend wraps in { accounts, pagination } — handle both shapes
+  return Array.isArray(data) ? data : (data as { accounts: Account[] }).accounts;
 };
 
 export const getAccount = async (username: string) => {

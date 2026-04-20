@@ -2,9 +2,12 @@
   --bg-app: #0f1115;
   --bg-card: #161b22;
   --bg-card-hover: #1c2128;
+  --bg-secondary: #1c2128;
   --text-primary: #f0f6fc;
   --text-secondary: #8b949e;
   --accent: #58a6ff;
+  --accent-primary: #58a6ff;
+  --primary: #58a6ff;
   --accent-glow: rgba(88, 166, 255, 0.15);
   --border: #30363d;
   --success: #238636;
@@ -519,4 +522,166 @@ body {
 .phase-dot.finished {
   color: #10b981;
   background: #10b981;
+}
+
+/* ─── App layout: sidebar + main ─────────────────────────────────────────── */
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  height: calc(100vh - 40px);
+  margin: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+.main-content {
+  margin-left: 300px;
+  padding: 40px;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  transition: all 0.15s;
+}
+
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.sidebar-link--active {
+  background: rgba(88, 166, 255, 0.1);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.sidebar-signout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sidebar-signout:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+/* ─── Breadcrumb ─────────────────────────────────────────────────────────── */
+
+.breadcrumb-link:hover {
+  color: var(--text-primary) !important;
+}
+
+/* ─── Previously missing utility classes ────────────────────────────────── */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nav-arrow {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.nav-arrow:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.accent-text {
+  color: var(--accent);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-secondary:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+/* Remove old .auth-container / .header — kept for any pages that still use them */
+.auth-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
 }

@@ -2,7 +2,8 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getAccount, getMediaUrl, API_URL, ingestAccount, type Post } from '../lib/api';
-import { ArrowLeft, MessageCircle, Heart, Download, RefreshCw, Database } from 'lucide-react';
+import { ArrowLeft, ChevronRight, MessageCircle, Heart, Download, RefreshCw, Database } from 'lucide-react';
+import { AccountBreadcrumb } from '../components/AccountBreadcrumb';
 
 const PostGridItem = ({ post }: { post: Post }) => {
   const [isHovered, setIsHovered] = React.useState(false);
@@ -154,19 +155,14 @@ export const AccountView = () => {
 
   return (
     <div className="fade-in">
-      <Link
-        to="/"
-        style={{
-          color: 'var(--text-secondary)',
-          textDecoration: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          marginBottom: '1.5rem',
-        }}
-      >
-        <ArrowLeft size={16} /> Back to Dashboard
-      </Link>
+      {/* Breadcrumb */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '14px' }}>
+        <Link to="/" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }} className="breadcrumb-link">
+          Overview
+        </Link>
+        <ChevronRight size={14} />
+        <AccountBreadcrumb activeUsername={account.username} />
+      </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2rem' }}>
         <img
