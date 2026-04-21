@@ -217,3 +217,18 @@ export const resumeIngestion = async (username: string) => {
   const { data } = await api.post('/resume', { username });
   return data;
 };
+
+export const getWorkspaces = async () => {
+  const { data } = await api.get('/workspaces');
+  return data;
+};
+
+export const getBrands = async (workspaceId: string) => {
+  const { data } = await api.get(`/workspaces/${workspaceId}/brands`);
+  return data;
+};
+
+export const getBrandIntelligence = async (brandId: string) => {
+  const { data } = await api.get(`/brands/${brandId}/intelligence`);
+  return data;
+};
