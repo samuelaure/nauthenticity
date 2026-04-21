@@ -37,7 +37,7 @@ function WorkspaceSelector() {
 
   useEffect(() => {
     const token = getToken();
-    fetch(`${NAU_API_URL}/api/workspaces`, {
+    fetch('/api/workspaces', {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((r) => (r.ok ? r.json() : []))
@@ -71,7 +71,7 @@ function WorkspaceSelector() {
     setSaving(true);
     try {
       const token = getToken();
-      const res = await fetch(`${NAU_API_URL}/api/workspaces`, {
+      const res = await fetch('/api/workspaces', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

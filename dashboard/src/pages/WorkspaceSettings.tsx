@@ -35,7 +35,7 @@ export function WorkspaceSettings() {
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
     // Load the workspace name by fetching the full list and finding the active one
-    fetch(`${NAU_API_URL}/api/workspaces`, { headers })
+    fetch('/api/workspaces', { headers })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Workspace[]) => {
         const ws = data.find((w) => w.id === workspaceId) ?? null;
@@ -49,7 +49,7 @@ export function WorkspaceSettings() {
       .finally(() => setLoading(false));
 
     // Load members separately
-    fetch(`${NAU_API_URL}/api/workspaces/${workspaceId}/members`, { headers })
+    fetch(`/api/workspaces/${workspaceId}/members`, { headers })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Member[]) => setMembers(data))
       .catch(() => {})
@@ -61,7 +61,7 @@ export function WorkspaceSettings() {
     setSaving(true);
     try {
       const token = getToken();
-      const res = await fetch(`${NAU_API_URL}/api/workspaces/${workspaceId}`, {
+      const res = await fetch(`/api/workspaces/${workspaceId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -77,6 +77,51 @@ export function WorkspaceSettings() {
       alert('Failed to update workspace name.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim() || !workspaceId) return;
+    setInviting(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`/api/workspaces/${workspaceId}/members`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ email: inviteEmail.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Invitation failed');
+      }
+      const newMember = await res.json();
+      setMembers([...members, newMember]);
+      setInviteEmail('');
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleRemove = async (userId: string) => {
+    if (!workspaceId || !confirm('Are you sure you want to remove this member?')) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`/api/workspaces/${workspaceId}/members/${userId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error();
+      setMembers(members.filter((m) => m.user.id !== userId));
+    } catch {
+      alert('Failed to remove member.');
     }
   };
 
@@ -185,6 +230,41 @@ export function WorkspaceSettings() {
             <Users size={15} color="#8b949e" />
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#f0f6fc' }}>Members</span>
           </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+            <input
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="Invite by email..."
+              style={{
+                flex: 1,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid #30363d',
+                borderRadius: '6px',
+                padding: '8px 12px',
+                color: '#f0f6fc',
+                fontSize: '13px',
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={handleInvite}
+              disabled={inviting || !inviteEmail.trim()}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                background: '#238636',
+                border: 'none',
+                color: 'white',
+                fontSize: '13px',
+                cursor: inviting || !inviteEmail.trim() ? 'not-allowed' : 'pointer',
+                opacity: !inviteEmail.trim() ? 0.6 : 1,
+              }}
+            >
+              {inviting ? 'Inviting...' : 'Invite'}
+            </button>
+          </div>
+
           {membersLoading ? (
             <p style={{ fontSize: '13px', color: '#8b949e' }}>Loading members…</p>
           ) : members.length === 0 ? (
@@ -198,33 +278,50 @@ export function WorkspaceSettings() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '8px 0',
+                    padding: '12px 0',
                     borderBottom: '1px solid #21262d',
                   }}
                 >
-                  <div>
-                    <span style={{ fontSize: '13px', color: '#f0f6fc' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '13px', color: '#f0f6fc', fontWeight: 500 }}>
                       {m.user.name ?? m.user.email}
                     </span>
                     {m.user.name && (
-                      <span style={{ fontSize: '12px', color: '#8b949e', marginLeft: '8px' }}>
+                      <span style={{ fontSize: '12px', color: '#8b949e' }}>
                         {m.user.email}
                       </span>
                     )}
                   </div>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      textTransform: 'capitalize',
-                      background: '#161b22',
-                      border: '1px solid #30363d',
-                      color: '#8b949e',
-                      padding: '2px 8px',
-                      borderRadius: '999px',
-                    }}
-                  >
-                    {m.role}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        textTransform: 'capitalize',
+                        background: '#161b22',
+                        border: '1px solid #30363d',
+                        color: '#8b949e',
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                      }}
+                    >
+                      {m.role}
+                    </span>
+                    {m.role !== 'owner' && (
+                      <button
+                        onClick={() => handleRemove(m.user.id)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#f85149',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          padding: '4px',
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
