@@ -3,9 +3,17 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 const CENTRAL_API_URL = 'https://api.9nau.com';
 
 export const workspacesController = async (fastify: FastifyInstance) => {
-  const proxyRequest = async (request: FastifyRequest, reply: FastifyReply, endpoint: string, method: string = 'GET') => {
+  const proxyRequest = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    endpoint: string,
+    method: string = 'GET',
+  ) => {
     const cookieHeader = request.headers.cookie || '';
-    const token = cookieHeader.split(';').find(c => c.trim().startsWith('nau_token='))?.split('=')[1];
+    const token = cookieHeader
+      .split(';')
+      .find((c) => c.trim().startsWith('nau_token='))
+      ?.split('=')[1];
 
     if (!token) {
       return reply.status(401).send({ error: 'Unauthorized: No token found' });
@@ -15,10 +23,10 @@ export const workspacesController = async (fastify: FastifyInstance) => {
       const response = await fetch(`${CENTRAL_API_URL}${endpoint}`, {
         method,
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: (method !== 'GET' && method !== 'DELETE') ? JSON.stringify(request.body) : undefined,
+        body: method !== 'GET' && method !== 'DELETE' ? JSON.stringify(request.body) : undefined,
       });
 
       const data = await response.json().catch(() => ({}));

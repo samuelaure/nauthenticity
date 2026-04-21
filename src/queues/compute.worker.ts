@@ -11,6 +11,23 @@ import { logContextStorage } from '../utils/context';
 import { computeQueue } from './compute.queue';
 import { downloadQueue } from './download.queue';
 import { getProfilesInfo } from '../services/apify.service';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
+
+// ---------------------------------------------------------------------------
+// R2 Client Initialization
+// ---------------------------------------------------------------------------
+const r2Client =
+  config.env.R2_ACCESS_KEY_ID && config.env.R2_SECRET_ACCESS_KEY && config.env.R2_ENDPOINT
+    ? new S3Client({
+        region: 'auto',
+        endpoint: config.env.R2_ENDPOINT,
+        credentials: {
+          accessKeyId: config.env.R2_ACCESS_KEY_ID,
+          secretAccessKey: config.env.R2_SECRET_ACCESS_KEY,
+        },
+      })
+    : null;
 
 // ---------------------------------------------------------------------------
 // Pipeline Step Registry
@@ -96,25 +113,80 @@ const atomicMove = (oldPath: string, newPath: string): void => {
   }
 };
 
-const optimizeMedia = async (mediaId: string, filePath: string): Promise<void> => {
+const optimizeMedia = async (mediaId: string, filePath: string): Promise<string> => {
   const media = await prisma.media.findUnique({ where: { id: mediaId } });
-  if (!media || media.type !== 'video') return;
+  if (!media) throw new Error('Media not found');
 
-  const optimizedTempFilePath = path.join(config.paths.temp, `${mediaId}_optimized.mp4`);
+  const optimizedTempFilePath = path.join(
+    config.paths.temp,
+    `${mediaId}_opt${media.type === 'video' ? '.mp4' : '.jpg'}`,
+  );
   ensureDir(config.paths.temp);
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      ffmpeg(filePath)
-        .outputOptions(['-c:v libx264', '-crf 28', '-vf scale=-2:720', '-c:a aac', '-b:a 128k'])
-        .save(optimizedTempFilePath)
-        .on('end', () => resolve())
-        .on('error', (err) => reject(err));
-    });
-    atomicMove(optimizedTempFilePath, filePath);
-  } finally {
+    if (media.type === 'video') {
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg(filePath)
+          .outputOptions(['-c:v libx264', '-crf 28', '-vf scale=-2:720', '-c:a aac', '-b:a 128k'])
+          .save(optimizedTempFilePath)
+          .on('end', () => resolve())
+          .on('error', (err) => reject(err));
+      });
+    } else {
+      // For images, we can do a simple resize/compression if needed,
+      // but for now we'll just copy or leave placeholder for future image optimization
+      fs.copyFileSync(filePath, optimizedTempFilePath);
+    }
+    return optimizedTempFilePath;
+  } catch (err) {
     if (fs.existsSync(optimizedTempFilePath)) fs.unlinkSync(optimizedTempFilePath);
+    throw err;
   }
+};
+
+const ensureLocalFile = async (
+  storageUrl: string,
+  mediaId: string,
+): Promise<{ path: string; isTemp: boolean }> => {
+  if (storageUrl.startsWith('/content/')) {
+    const localPath = path.join(config.paths.storage, storageUrl.replace('/content/', ''));
+    if (fs.existsSync(localPath)) {
+      return { path: localPath, isTemp: false };
+    }
+    throw new Error(`Local file not found: ${localPath}`);
+  }
+
+  // Handle R2 or other remote URLs
+  if (!r2Client || !config.env.R2_BUCKET_NAME) {
+    throw new Error('R2 client not configured for remote file download');
+  }
+
+  const url = new URL(storageUrl);
+  const key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+  // If the PUBLIC_URL is used, it might contain the bucket name or a custom domain.
+  // We need to extract the key properly.
+  // Let's assume the key is simply the part after the last slash if it's a simple CDN,
+  // or use the pathname if it's a direct R2 URL.
+  // For naŭthenticity, the key is usually 'content/{username}/posts/{mediaId}.{ext}'
+  const actualKey = key.includes('content/') ? key.substring(key.indexOf('content/')) : key;
+
+  const response = await r2Client.send(
+    new GetObjectCommand({
+      Bucket: config.env.R2_BUCKET_NAME,
+      Key: actualKey,
+    }),
+  );
+
+  const tempPath = path.join(config.paths.temp, `${mediaId}_raw`);
+  ensureDir(config.paths.temp);
+
+  const stream = response.Body as Readable;
+  const writeStream = fs.createWriteStream(tempPath);
+  await new Promise((resolve, reject) => {
+    stream.pipe(writeStream).on('finish', resolve).on('error', reject);
+  });
+
+  return { path: tempPath, isTemp: true };
 };
 
 const generateThumbnail = async (
@@ -127,7 +199,9 @@ const generateThumbnail = async (
   const thumbFilename = `${mediaId}_thumb.jpg`;
   const thumbPath = path.join(userDir, thumbFilename);
   const thumbPublicUrl = `/content/${username}/posts/${thumbFilename}`;
+  let finalThumbUrl = thumbPublicUrl;
 
+  // 1. Generate local thumbnail
   await new Promise<void>((resolve, reject) => {
     const proc = ffmpeg(filePath);
     if (type === 'video') {
@@ -144,7 +218,26 @@ const generateThumbnail = async (
     }
   });
 
-  await prisma.media.update({ where: { id: mediaId }, data: { thumbnailUrl: thumbPublicUrl } });
+  // 2. Upload to R2 if enabled
+  if (r2Client && config.env.R2_BUCKET_NAME) {
+    const storageKey = `content/${username}/posts/${thumbFilename}`;
+    await r2Client.send(
+      new PutObjectCommand({
+        Bucket: config.env.R2_BUCKET_NAME,
+        Key: storageKey,
+        Body: fs.createReadStream(thumbPath),
+        ContentType: 'image/jpeg',
+      }),
+    );
+    finalThumbUrl = config.env.R2_PUBLIC_URL
+      ? `${config.env.R2_PUBLIC_URL}/${storageKey}`
+      : thumbPublicUrl;
+
+    // Cleanup local thumb after upload
+    if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
+  }
+
+  await prisma.media.update({ where: { id: mediaId }, data: { thumbnailUrl: finalThumbUrl } });
 };
 
 const transcribeVideo = async (
@@ -254,17 +347,18 @@ const handleVisualizeBatch = async (
       currentItem,
     });
 
-    if (m.storageUrl.startsWith('/content/')) {
-      const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
-      if (fs.existsSync(filePath)) {
-        try {
-          logger.info(`[ComputeWorker] Thumbnail for ${m.id} (@${currentItem.username})`);
-          await generateThumbnail(m.id, filePath, userDir, username, m.type);
-        } catch (err) {
-          logger.error(`[ComputeWorker] Failed to generate thumbnail for ${m.id}: ${err}`);
-          // Continue to next item
-        }
+    try {
+      const { path: filePath, isTemp } = await ensureLocalFile(m.storageUrl, m.id);
+      try {
+        logger.info(`[ComputeWorker] Thumbnail for ${m.id} (@${currentItem.username})`);
+        await generateThumbnail(m.id, filePath, userDir, username, m.type);
+      } catch (err) {
+        logger.error(`[ComputeWorker] Failed to generate thumbnail for ${m.id}: ${err}`);
+      } finally {
+        if (isTemp && fs.existsSync(filePath)) fs.unlinkSync(filePath);
       }
+    } catch (err) {
+      logger.error(`[ComputeWorker] Failed to ensure local file for thumbnail ${m.id}: ${err}`);
     }
   }
 };
@@ -387,16 +481,40 @@ const handleOptimizeBatch = async (
       currentItem,
     });
 
-    if (m.type === 'video' && m.storageUrl.startsWith('/content/')) {
-      const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
-      if (fs.existsSync(filePath)) {
-        try {
-          logger.info(`[ComputeWorker] Optimizing ${m.id} for @${currentItem.username}`);
-          await optimizeMedia(m.id, filePath);
-        } catch (err) {
-          logger.error(`[ComputeWorker] Failed to optimize media ${m.id}: ${err}`);
+    try {
+      const { path: filePath, isTemp } = await ensureLocalFile(m.storageUrl, m.id);
+      try {
+        logger.info(`[ComputeWorker] Optimizing ${m.id} for @${currentItem.username}`);
+        const optimizedPath = await optimizeMedia(m.id, filePath);
+
+        if (m.storageUrl.startsWith('http') && r2Client && config.env.R2_BUCKET_NAME) {
+          // If remote, upload optimized and overwrite
+          const url = new URL(m.storageUrl);
+          const key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+          const actualKey = key.includes('content/') ? key.substring(key.indexOf('content/')) : key;
+
+          await r2Client.send(
+            new PutObjectCommand({
+              Bucket: config.env.R2_BUCKET_NAME,
+              Key: actualKey,
+              Body: fs.createReadStream(optimizedPath),
+              ContentType: m.type === 'video' ? 'video/mp4' : 'image/jpeg',
+            }),
+          );
+          logger.info(`[ComputeWorker] Uploaded optimized media to R2: ${actualKey}`);
+        } else {
+          // If local, overwrite original
+          atomicMove(optimizedPath, filePath);
         }
+
+        if (fs.existsSync(optimizedPath)) fs.unlinkSync(optimizedPath);
+      } catch (err) {
+        logger.error(`[ComputeWorker] Failed to optimize media ${m.id}: ${err}`);
+      } finally {
+        if (isTemp && fs.existsSync(filePath)) fs.unlinkSync(filePath);
       }
+    } catch (err) {
+      logger.error(`[ComputeWorker] Failed to ensure local file for optimization ${m.id}: ${err}`);
     }
   }
 };
@@ -440,16 +558,18 @@ const handleTranscribeBatch = async (
       currentItem,
     });
 
-    if (m.storageUrl.startsWith('/content/')) {
-      const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
-      if (fs.existsSync(filePath)) {
-        try {
-          logger.info(`[ComputeWorker] Transcribing ${m.id} (@${currentItem.username})`);
-          await transcribeVideo(m.id, m.postId, filePath);
-        } catch (err) {
-          logger.error(`[ComputeWorker] Failed to transcribe media ${m.id}: ${err}`);
-        }
+    try {
+      const { path: filePath, isTemp } = await ensureLocalFile(m.storageUrl, m.id);
+      try {
+        logger.info(`[ComputeWorker] Transcribing ${m.id} (@${currentItem.username})`);
+        await transcribeVideo(m.id, m.postId, filePath);
+      } catch (err) {
+        logger.error(`[ComputeWorker] Failed to transcribe media ${m.id}: ${err}`);
+      } finally {
+        if (isTemp && fs.existsSync(filePath)) fs.unlinkSync(filePath);
       }
+    } catch (err) {
+      logger.error(`[ComputeWorker] Failed to ensure local file for transcription ${m.id}: ${err}`);
     }
   }
 };

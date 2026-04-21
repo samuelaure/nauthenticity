@@ -58,7 +58,8 @@ export const dashboardController = async (fastify: FastifyInstance) => {
   });
 
   fastify.post('/targets', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { brandId, username, targetType, isActive, initialDownloadCount, autoUpdate } = request.body as any;
+    const { brandId, username, targetType, isActive, initialDownloadCount, autoUpdate } =
+      request.body as any;
     if (!brandId || !username) return reply.status(400).send({ error: 'Missing required fields' });
 
     await prisma.igProfile.upsert({
@@ -69,7 +70,14 @@ export const dashboardController = async (fastify: FastifyInstance) => {
 
     const target = await prisma.brandTarget.upsert({
       where: { brandId_username: { brandId, username } },
-      create: { brandId, username, targetType, isActive: isActive ?? true, initialDownloadCount, autoUpdate },
+      create: {
+        brandId,
+        username,
+        targetType,
+        isActive: isActive ?? true,
+        initialDownloadCount,
+        autoUpdate,
+      },
       update: { targetType, isActive: isActive ?? true, initialDownloadCount, autoUpdate },
     });
     return reply.send(target);
@@ -82,7 +90,8 @@ export const dashboardController = async (fastify: FastifyInstance) => {
     const dataToUpdate: any = {};
     if (isActive !== undefined) dataToUpdate.isActive = isActive;
     if (autoUpdate !== undefined) dataToUpdate.autoUpdate = autoUpdate;
-    if (initialDownloadCount !== undefined) dataToUpdate.initialDownloadCount = initialDownloadCount;
+    if (initialDownloadCount !== undefined)
+      dataToUpdate.initialDownloadCount = initialDownloadCount;
 
     const updated = await prisma.brandTarget.update({
       where: { id },

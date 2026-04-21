@@ -9,7 +9,7 @@ import { createWriteStream } from 'fs';
 import { logContextStorage } from '../utils/context';
 import { computeQueue } from './compute.queue';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { optimizeImage, optimizeVideo } from '../utils/media';
+
 
 const r2Client = config.env.R2_ENDPOINT
   ? new S3Client({
@@ -84,29 +84,15 @@ export const downloadWorker = new Worker(
             const buffer = Buffer.from(await response.arrayBuffer());
             fs.writeFileSync(tempFilePath, buffer);
 
-            // 1.5 Optimize before upload
-            const optimizedPath = path.join(
-              config.paths.temp,
-              `${mediaId}_opt${fileExt === 'mp4' ? '.mp4' : '.jpg'}`,
-            );
-            if (type === 'video') {
-              await optimizeVideo(tempFilePath, optimizedPath);
-            } else {
-              await optimizeImage(tempFilePath, optimizedPath);
-            }
-
-            // 2. Upload to R2
+            // 2. Upload to R2 (RAW file)
             await r2Client.send(
               new PutObjectCommand({
                 Bucket: config.env.R2_BUCKET_NAME,
                 Key: storageKey,
-                Body: fs.createReadStream(optimizedPath),
+                Body: buffer,
                 ContentType: type === 'video' ? 'video/mp4' : 'image/jpeg',
               }),
             );
-
-            // Cleanup optimized file
-            if (fs.existsSync(optimizedPath)) fs.unlinkSync(optimizedPath);
           } else {
             // Fallback to local storage (existing logic)
             if (!fs.existsSync(finalPath)) {
@@ -114,12 +100,8 @@ export const downloadWorker = new Worker(
               if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
               await pipeline(response.body as any, createWriteStream(tempFilePath));
 
-              // Optimize local as well
-              if (type === 'video') {
-                await optimizeVideo(tempFilePath, finalPath);
-              } else {
-                await optimizeImage(tempFilePath, finalPath);
-              }
+              // Save raw to local fallback
+              await pipeline(response.body as any, createWriteStream(finalPath));
             }
           }
 

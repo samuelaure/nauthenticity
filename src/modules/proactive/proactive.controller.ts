@@ -276,7 +276,8 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
             targetType,
             profileStrategy: profileStrategy !== undefined ? profileStrategy : undefined,
             isActive,
-            initialDownloadCount: initialDownloadCount !== undefined ? initialDownloadCount : undefined,
+            initialDownloadCount:
+              initialDownloadCount !== undefined ? initialDownloadCount : undefined,
             autoUpdate: autoUpdate !== undefined ? autoUpdate : undefined,
           },
         });
