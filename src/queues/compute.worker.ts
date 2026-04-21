@@ -257,8 +257,13 @@ const handleVisualizeBatch = async (
     if (m.storageUrl.startsWith('/content/')) {
       const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
       if (fs.existsSync(filePath)) {
-        logger.info(`[ComputeWorker] Thumbnail for ${m.id} (@${currentItem.username})`);
-        await generateThumbnail(m.id, filePath, userDir, username, m.type);
+        try {
+          logger.info(`[ComputeWorker] Thumbnail for ${m.id} (@${currentItem.username})`);
+          await generateThumbnail(m.id, filePath, userDir, username, m.type);
+        } catch (err) {
+          logger.error(`[ComputeWorker] Failed to generate thumbnail for ${m.id}: ${err}`);
+          // Continue to next item
+        }
       }
     }
   }
@@ -385,8 +390,12 @@ const handleOptimizeBatch = async (
     if (m.type === 'video' && m.storageUrl.startsWith('/content/')) {
       const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
       if (fs.existsSync(filePath)) {
-        logger.info(`[ComputeWorker] Optimizing ${m.id} for @${currentItem.username}`);
-        await optimizeMedia(m.id, filePath);
+        try {
+          logger.info(`[ComputeWorker] Optimizing ${m.id} for @${currentItem.username}`);
+          await optimizeMedia(m.id, filePath);
+        } catch (err) {
+          logger.error(`[ComputeWorker] Failed to optimize media ${m.id}: ${err}`);
+        }
       }
     }
   }
@@ -434,8 +443,12 @@ const handleTranscribeBatch = async (
     if (m.storageUrl.startsWith('/content/')) {
       const filePath = path.join(config.paths.storage, m.storageUrl.replace('/content/', ''));
       if (fs.existsSync(filePath)) {
-        logger.info(`[ComputeWorker] Transcribing ${m.id} (@${currentItem.username})`);
-        await transcribeVideo(m.id, m.postId, filePath);
+        try {
+          logger.info(`[ComputeWorker] Transcribing ${m.id} (@${currentItem.username})`);
+          await transcribeVideo(m.id, m.postId, filePath);
+        } catch (err) {
+          logger.error(`[ComputeWorker] Failed to transcribe media ${m.id}: ${err}`);
+        }
       }
     }
   }

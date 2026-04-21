@@ -9,6 +9,7 @@ import { createWriteStream } from 'fs';
 import { logContextStorage } from '../utils/context';
 import { computeQueue } from './compute.queue';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { optimizeImage, optimizeVideo } from '../utils/media';
 
 const r2Client = config.env.R2_ENDPOINT
   ? new S3Client({
@@ -39,19 +40,6 @@ interface ProcessProfileImageData {
 const ensureDir = (dir: string) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
-  }
-};
-
-const atomicMove = (oldPath: string, newPath: string) => {
-  try {
-    fs.renameSync(oldPath, newPath);
-  } catch (err: any) {
-    if (err.code === 'EXDEV') {
-      fs.copyFileSync(oldPath, newPath);
-      fs.unlinkSync(oldPath);
-    } else {
-      throw err;
-    }
   }
 };
 
@@ -94,23 +82,44 @@ export const downloadWorker = new Worker(
             const response = await fetch(url);
             if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
             const buffer = Buffer.from(await response.arrayBuffer());
+            fs.writeFileSync(tempFilePath, buffer);
+
+            // 1.5 Optimize before upload
+            const optimizedPath = path.join(
+              config.paths.temp,
+              `${mediaId}_opt${fileExt === 'mp4' ? '.mp4' : '.jpg'}`,
+            );
+            if (type === 'video') {
+              await optimizeVideo(tempFilePath, optimizedPath);
+            } else {
+              await optimizeImage(tempFilePath, optimizedPath);
+            }
 
             // 2. Upload to R2
             await r2Client.send(
               new PutObjectCommand({
                 Bucket: config.env.R2_BUCKET_NAME,
                 Key: storageKey,
-                Body: buffer,
+                Body: fs.createReadStream(optimizedPath),
                 ContentType: type === 'video' ? 'video/mp4' : 'image/jpeg',
               }),
             );
+
+            // Cleanup optimized file
+            if (fs.existsSync(optimizedPath)) fs.unlinkSync(optimizedPath);
           } else {
             // Fallback to local storage (existing logic)
             if (!fs.existsSync(finalPath)) {
               const response = await fetch(url);
               if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
               await pipeline(response.body as any, createWriteStream(tempFilePath));
-              atomicMove(tempFilePath, finalPath);
+
+              // Optimize local as well
+              if (type === 'video') {
+                await optimizeVideo(tempFilePath, finalPath);
+              } else {
+                await optimizeImage(tempFilePath, finalPath);
+              }
             }
           }
 
@@ -178,21 +187,44 @@ export const downloadWorker = new Worker(
             if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
             const buffer = Buffer.from(await response.arrayBuffer());
 
+            // Temporary save for optimization
+            const tempProfilePath = path.join(
+              config.paths.temp,
+              `profile_${username}_${Date.now()}.jpg`,
+            );
+            fs.writeFileSync(tempProfilePath, buffer);
+            const optimizedProfilePath = path.join(
+              config.paths.temp,
+              `profile_${username}_opt_${Date.now()}.jpg`,
+            );
+
+            await optimizeImage(tempProfilePath, optimizedProfilePath);
+
             await r2Client.send(
               new PutObjectCommand({
                 Bucket: config.env.R2_BUCKET_NAME,
                 Key: storageKey,
-                Body: buffer,
+                Body: fs.createReadStream(optimizedProfilePath),
                 ContentType: 'image/jpeg',
               }),
             );
+
+            // Cleanup
+            if (fs.existsSync(tempProfilePath)) fs.unlinkSync(tempProfilePath);
+            if (fs.existsSync(optimizedProfilePath)) fs.unlinkSync(optimizedProfilePath);
           } else {
             // Fallback
             if (!fs.existsSync(finalPath)) {
               const response = await fetch(url);
               if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`);
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await pipeline(response.body as any, createWriteStream(finalPath));
+              const buffer = Buffer.from(await response.arrayBuffer());
+              const tempProfilePath = path.join(
+                config.paths.temp,
+                `profile_${username}_${Date.now()}.jpg`,
+              );
+              fs.writeFileSync(tempProfilePath, buffer);
+              await optimizeImage(tempProfilePath, finalPath);
+              if (fs.existsSync(tempProfilePath)) fs.unlinkSync(tempProfilePath);
             }
           }
 
