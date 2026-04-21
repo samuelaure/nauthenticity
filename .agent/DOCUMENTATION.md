@@ -14,6 +14,7 @@ Node.js, Fastify, Prisma, PostgreSQL (`pgvector`), OpenAI, Apify, node-cron, dat
 - **5-Level Prompt Comment Generation**: Generates brand-voice-consistent, language-aware Instagram comment suggestions using a structured multi-level prompt (Brand DNA → Comment Strategy → Profile Strategy → Recent Comments Context → Post).
 - **Smart Fanout Scheduler**: Internal cron (every 15 min) evaluates each brand's delivery window to apply either a 15-min (in-window) or 60-min (out-of-window) scraping threshold per account — minimizing Apify API calls.
 - **InspoBase & Synthesis Engine**: Mechanical rolling synthesis of inspiration items into Brand Digests for flownaŭ's ideation engine.
+- **Pipeline Resilience**: Distributed batch processing with item-level error isolation. Failures in one media item (e.g., thumbnail generation or corrupted files) do not stall the entire scraping run.
 - **Soft Delete & Recovery**: Brands support soft delete (recoverable), review of deleted brands, and explicit permanent deletion.
 
 ## Active API Surface
@@ -30,6 +31,14 @@ Node.js, Fastify, Prisma, PostgreSQL (`pgvector`), OpenAI, Apify, node-cron, dat
 - `GET /api/v1/brands/:id/persona` — Returns Brand DNA (voicePrompt) for ecosystem consumption. Requires JWT or `NAU_SERVICE_KEY`.
 - `GET /api/v1/brands/:id/dna` — Returns full Brand DNA document. Requires `NAU_SERVICE_KEY`. *(Phase 13)*
 - `GET /api/v1/brands/:id/dna-light` — Returns ultra-light Brand DNA for low-token tasks. Requires `NAU_SERVICE_KEY`. *(Phase 13)*
+
+### Workspace & Brand Dashboard (Proxy to 9naŭ)
+- `GET /api/workspaces` — List user's workspaces.
+- `GET /api/workspaces/:id/members` — List members of a workspace.
+- `PATCH /api/workspaces/:id` — Rename workspace.
+- `POST /api/workspaces/:id/members` — Invite member.
+- `DELETE /api/workspaces/:id/members/:userId` — Remove member.
+- `GET /api/workspaces/:id/brands` — List brands associated with a workspace.
 
 ### Comment Suggestion & InspoBase
 - `POST /api/v1/generate-comment` — Reactive comment generation. Requires `NAU_SERVICE_KEY`.
@@ -51,6 +60,11 @@ Node.js, Fastify, Prisma, PostgreSQL (`pgvector`), OpenAI, Apify, node-cron, dat
 - `APIFY_API_KEY` — Apify API key
 - `NAU_SERVICE_KEY` — Inter-service authentication key
 - `ZAZU_HOST` — Internal URL for Zazŭ service (default: `http://zazu:3000`)
+- `R2_ACCESS_KEY_ID` — Cloudflare R2 Access Key
+- `R2_SECRET_ACCESS_KEY` — Cloudflare R2 Secret Key
+- `R2_ENDPOINT` — Cloudflare R2 Endpoint (S3 compatible)
+- `R2_BUCKET_NAME` — Storage bucket name (e.g., `nau-storage`)
+- `R2_PUBLIC_URL` — Public CDN URL for the bucket (e.g., `https://media.9nau.com`)
 
 ## Key Decisions
 - **[2026-04-18] Entity Naming Convention V1**: `BrandConfig` renamed to `Brand`, `Account` renamed to `IgProfile`. Cross-service references use `brandId`.
@@ -58,6 +72,7 @@ Node.js, Fastify, Prisma, PostgreSQL (`pgvector`), OpenAI, Apify, node-cron, dat
 - **[2026-04-18] Brand Registry SoT**: nauthenticity is the canonical source of truth for brand identity across the naŭ Platform.
 - **[2026-04-18] Isolated by Workspace**: Brands belong to a `workspaceId` (which resolves to 9naŭ's Workspace). Removes `userId` from Brand.
 - **[2026-04-18] Brand DNA Tiers**: Full DNA for ideation/composition + ultra-light for triage/comment suggestion (low-token).
+- **[2026-04-21] Pipeline Resilience V1**: Wrapped compute worker batch handlers in try/catch to prevent stall on corrupted/mislabeled media. Fixed R2 upload buffer bug.
 - **[2026-04-18] Soft Delete**: Brand deletion is soft by default. Hard delete is explicit. Recovery, review, and permanent deletion supported.
 - **[2026-04-18] Any-App Brand Creation**: All naŭ apps can create brands via `POST /api/v1/brands`. Each app injects its own linked data.
 - **[2026-04-07] Deduplicated Proactive Scraping:** Apify orchestrates global targets. JSON payload is locally mapped and fanned out to generation jobs per interested brand.
@@ -67,6 +82,8 @@ Node.js, Fastify, Prisma, PostgreSQL (`pgvector`), OpenAI, Apify, node-cron, dat
 - **[2026-04-10] `isEdited` → `isSelected`:** CommentFeedback model simplified — user selects one of N suggestions via Telegram button; no text editing in the loop.
 - **[2026-04-10] Brand DNA Source of Truth:** `nauthenticity` is the canonical owner of Brand Persona/DNA.
 - **[2026-04-10] 4 posts per account per cycle:** Conservative limit while Apify actor is still maturing. Dedup by `instagramId` prevents reprocessing.
+- **[2026-04-21] Two-Stage Cloud-First Pipeline**: Decoupled download from optimization. Raw files are secured in R2 `raw/` paths immediately to prevent Apify URL expiry. Optimization (ffmpeg) runs on a single-concurrency queue to protect VPS resources.
+- **[2026-04-21] Media Optimization**: Integrated `ffmpeg` for video normalization (720p H.264) and image compression (JPEG) to ensure premium feel and storage efficiency.
 
 ## naŭ Platform Dependencies
 - `zazu` — Receives dispatched comment suggestions via `POST /api/internal/notify`. Brand CRUD from Zazŭ dashboard.
