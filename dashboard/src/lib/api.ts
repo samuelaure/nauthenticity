@@ -261,12 +261,14 @@ export const addBrandTarget = async (payload: {
   username: string;
   targetType: string;
   isActive?: boolean;
+  initialDownloadCount?: number;
+  autoUpdate?: boolean;
 }) => {
   const { data } = await api.post(`/targets`, payload);
   return data;
 };
 
-export const updateBrandTarget = async (id: string, updates: { isActive: boolean }) => {
+export const updateBrandTarget = async (id: string, updates: { isActive?: boolean; autoUpdate?: boolean; initialDownloadCount?: number }) => {
   const { data } = await api.patch(`/targets/${id}`, updates);
   return data;
 };
