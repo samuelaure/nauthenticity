@@ -24,6 +24,7 @@ const authenticateService = (request: FastifyRequest, reply: FastifyReply, done:
 // ---------------------------------------------------------------------------
 
 const BrandIntelligenceUpsertSchema = z.object({
+  mainIgUsername: z.string().optional().nullable(),
   voicePrompt: z.string().min(1),
   commentStrategy: z.string().optional().nullable(),
   suggestionsCount: z.number().int().min(1).max(10).default(3),
@@ -39,14 +40,24 @@ const BrandIntelligenceUpsertSchema = z.object({
     .nullable(),
 });
 
+const TargetTypeEnum = z.enum(['monitored', 'benchmark', 'single_post']);
+
 const TargetCreateSchema = z.object({
   brandId: z.string().min(1),
   usernames: z.array(z.string().min(1)),
+  targetType: TargetTypeEnum.default('monitored'),
   profileStrategy: z.string().optional().nullable(),
+  isActive: z.boolean().default(true),
+  initialDownloadCount: z.number().int().min(1).max(500).optional().nullable(),
+  autoUpdate: z.boolean().optional().nullable(),
 });
 
 const TargetUpdateSchema = z.object({
   profileStrategy: z.string().optional().nullable(),
+  targetType: TargetTypeEnum.optional(),
+  isActive: z.boolean().optional(),
+  initialDownloadCount: z.number().int().min(1).max(500).optional().nullable(),
+  autoUpdate: z.boolean().optional().nullable(),
 });
 
 const FeedbackSchema = z.object({
@@ -139,7 +150,20 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
       const { brandId } = request.params as { brandId: string };
       const intelligence = await prisma.brandIntelligence.findUnique({
         where: { brandId },
-        include: { targets: { select: { username: true, profileStrategy: true } } },
+        include: {
+          targets: {
+            select: {
+              id: true,
+              username: true,
+              targetType: true,
+              isActive: true,
+              profileStrategy: true,
+              initialDownloadCount: true,
+              autoUpdate: true,
+              createdAt: true,
+            },
+          },
+        },
       });
       if (!intelligence) return reply.status(404).send({ error: 'Brand intelligence not found' });
       return reply.send(intelligence);
@@ -220,7 +244,15 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
   // -------------------------------------------------------------------------
   fastify.post('/v1/targets', { preHandler: authenticateService }, async (request, reply) => {
     try {
-      const { brandId, usernames, profileStrategy } = TargetCreateSchema.parse(request.body);
+      const {
+        brandId,
+        usernames,
+        targetType,
+        profileStrategy,
+        isActive,
+        initialDownloadCount,
+        autoUpdate,
+      } = TargetCreateSchema.parse(request.body);
 
       for (const username of usernames) {
         await prisma.igProfile.upsert({
@@ -231,8 +263,22 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
 
         await prisma.brandTarget.upsert({
           where: { brandId_username: { brandId, username } },
-          create: { brandId, username, profileStrategy: profileStrategy ?? null },
-          update: profileStrategy !== undefined ? { profileStrategy } : {},
+          create: {
+            brandId,
+            username,
+            targetType,
+            profileStrategy: profileStrategy ?? null,
+            isActive,
+            initialDownloadCount: initialDownloadCount ?? null,
+            autoUpdate: autoUpdate ?? null,
+          },
+          update: {
+            targetType,
+            profileStrategy: profileStrategy !== undefined ? profileStrategy : undefined,
+            isActive,
+            initialDownloadCount: initialDownloadCount !== undefined ? initialDownloadCount : undefined,
+            autoUpdate: autoUpdate !== undefined ? autoUpdate : undefined,
+          },
         });
       }
 

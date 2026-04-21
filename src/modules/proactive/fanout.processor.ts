@@ -48,7 +48,10 @@ export const runProactiveFanout = async (now: Date = new Date()): Promise<void> 
 
   const allBrands = (await prisma.brandIntelligence.findMany({
     include: {
-      targets: { include: { igProfile: true } },
+      targets: {
+        where: { targetType: 'monitored', isActive: true },
+        include: { igProfile: true },
+      },
     },
   })) as BrandWithTargets[];
 
