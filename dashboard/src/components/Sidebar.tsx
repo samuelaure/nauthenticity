@@ -20,7 +20,6 @@ type Workspace = { id: string; name: string };
 
 function WorkspaceSelector() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);

@@ -2,7 +2,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getAccount, getMediaUrl, API_URL, ingestAccount, type Post } from '../lib/api';
-import { ArrowLeft, ChevronRight, MessageCircle, Heart, Download, RefreshCw, Database } from 'lucide-react';
+import { ChevronRight, MessageCircle, Heart, Download, RefreshCw, Database } from 'lucide-react';
 import { AccountBreadcrumb } from '../components/AccountBreadcrumb';
 
 const PostGridItem = ({ post }: { post: Post }) => {
