@@ -232,3 +232,18 @@ export const getBrandIntelligence = async (brandId: string) => {
   const { data } = await api.get(`/brands/${brandId}/intelligence`);
   return data;
 };
+
+export const getInspoItems = async (brandId: string) => {
+  const { data } = await api.get(`/inspo?brandId=${brandId}`);
+  return data;
+};
+
+export const getInspoDigest = async (brandId: string) => {
+  const { data } = await api.get(`/inspo/digest?brandId=${brandId}`);
+  return data;
+};
+
+export const updateInspoItem = async (id: string, updates: any) => {
+  const { data } = await api.post(`/inspo/${id}/process`, updates);
+  return data;
+};
