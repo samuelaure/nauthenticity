@@ -10,35 +10,52 @@ export interface TranscriptionResult {
 }
 
 let openai: OpenAI | null = null;
+let isLocalWhisper = false;
 
 export const transcribeAudio = async (filePath: string): Promise<TranscriptionResult> => {
-  if (!config.transcription.url) {
-    throw new Error(
-      '[Transcription] TRANSCRIPTION_URL is not configured. ' +
-        'Start the local Whisper container (infrastructure/whisper) and set TRANSCRIPTION_URL in .env.',
+  if (!openai) {
+    // Determine if we should use local whisper or OpenAI API
+    // If URL is set and doesn't contain 'api.openai.com', we assume local
+    isLocalWhisper = !!(
+      config.transcription.url && !config.transcription.url.includes('openai.com')
     );
+
+    if (isLocalWhisper) {
+      logger.info(
+        `[Transcription] Initializing local Whisper client @ ${config.transcription.url}`,
+      );
+      openai = new OpenAI({
+        apiKey: 'local-no-key',
+        baseURL: `${config.transcription.url}/v1`,
+      });
+    } else {
+      logger.info('[Transcription] Initializing OpenAI Whisper client');
+      if (!config.openai.apiKey) {
+        throw new Error(
+          '[Transcription] OPENAI_API_KEY is not configured for OpenAI transcription.',
+        );
+      }
+      openai = new OpenAI({
+        apiKey: config.openai.apiKey,
+      });
+    }
   }
 
-  if (!openai) {
-    openai = new OpenAI({
-      apiKey: 'local-no-key', // Whisper OSS does not require an API key
-      baseURL: `${config.transcription.url}/v1`,
-    });
-  }
   try {
+    const model = isLocalWhisper ? 'Systran/faster-whisper-base' : 'whisper-1';
     logger.info(
-      `[Transcription] Transcribing ${filePath} using local whisper @ ${config.transcription.url} ...`,
+      `[Transcription] Transcribing ${filePath} using ${isLocalWhisper ? 'local whisper' : 'OpenAI'} (${model}) ...`,
     );
+
     const result = await openai.audio.transcriptions.create({
       file: fs.createReadStream(filePath),
-      model: 'Systran/faster-whisper-base', // Exact model ID served by the whisper container
+      model,
     });
 
     return {
       text: result.text,
       json: result,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     logger.error(`[Transcription] Error: ${error.message}`);
     throw error;
