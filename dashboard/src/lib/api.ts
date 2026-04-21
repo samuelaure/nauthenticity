@@ -268,7 +268,10 @@ export const addBrandTarget = async (payload: {
   return data;
 };
 
-export const updateBrandTarget = async (id: string, updates: { isActive?: boolean; autoUpdate?: boolean; initialDownloadCount?: number }) => {
+export const updateBrandTarget = async (
+  id: string,
+  updates: { isActive?: boolean; autoUpdate?: boolean; initialDownloadCount?: number },
+) => {
   const { data } = await api.patch(`/targets/${id}`, updates);
   return data;
 };

@@ -28,8 +28,21 @@ export const AccountView = () => {
   return (
     <div className="fade-in">
       {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '14px' }}>
-        <Link to="/" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }} className="breadcrumb-link">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '1.5rem',
+          color: 'var(--text-secondary)',
+          fontSize: '14px',
+        }}
+      >
+        <Link
+          to="/"
+          style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
+          className="breadcrumb-link"
+        >
           Overview
         </Link>
         <ChevronRight size={14} />

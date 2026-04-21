@@ -12,10 +12,10 @@ export const BrandsList = () => {
     isLoading,
     isError,
     error,
-  } = useQuery({ 
-    queryKey: ['brands', workspaceId], 
+  } = useQuery({
+    queryKey: ['brands', workspaceId],
     queryFn: () => getBrands(workspaceId!),
-    enabled: !!workspaceId
+    enabled: !!workspaceId,
   });
 
   if (isLoading) return <div>Loading...</div>;
@@ -48,7 +48,19 @@ export const BrandsList = () => {
               onClick={() => navigate(`/workspaces/${workspaceId}/brands/${brand.id}/content`)}
             >
               <div className="profile-header">
-                <div style={{ padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '50%', color: '#8b949e', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    padding: '8px',
+                    background: 'rgba(255,255,255,0.05)',
+                    borderRadius: '50%',
+                    color: '#8b949e',
+                    width: '40px',
+                    height: '40px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   <Shield size={20} />
                 </div>
                 <div className="profile-info">
@@ -58,11 +70,11 @@ export const BrandsList = () => {
               </div>
             </div>
           ))}
-          {Array.isArray(brands) && brands.length === 0 && (
-            <div style={{ color: '#8b949e', padding: '2rem 0' }}>
-              No brands found in this workspace. Create one in the central naŭ platform.
-            </div>
-          )}
+        {Array.isArray(brands) && brands.length === 0 && (
+          <div style={{ color: '#8b949e', padding: '2rem 0' }}>
+            No brands found in this workspace. Create one in the central naŭ platform.
+          </div>
+        )}
       </div>
     </div>
   );

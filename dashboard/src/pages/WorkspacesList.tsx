@@ -46,7 +46,19 @@ export const WorkspacesList = () => {
               }}
             >
               <div className="profile-header">
-                <div style={{ padding: '8px', background: 'rgba(56,139,253,0.15)', borderRadius: '8px', color: '#58a6ff', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    padding: '8px',
+                    background: 'rgba(56,139,253,0.15)',
+                    borderRadius: '8px',
+                    color: '#58a6ff',
+                    width: '40px',
+                    height: '40px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   <Briefcase size={20} />
                 </div>
                 <div className="profile-info">
@@ -56,11 +68,11 @@ export const WorkspacesList = () => {
               </div>
             </div>
           ))}
-          {Array.isArray(workspaces) && workspaces.length === 0 && (
-            <div style={{ color: '#8b949e', padding: '2rem 0' }}>
-              No workspaces found. Create one.
-            </div>
-          )}
+        {Array.isArray(workspaces) && workspaces.length === 0 && (
+          <div style={{ color: '#8b949e', padding: '2rem 0' }}>
+            No workspaces found. Create one.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -15,7 +15,6 @@ import {
   Shield,
 } from 'lucide-react';
 
-
 type Workspace = { id: string; name: string };
 
 function WorkspaceSelector() {
@@ -28,8 +27,8 @@ function WorkspaceSelector() {
   const ref = useRef<HTMLDivElement>(null);
 
   // Persist selected workspace in localStorage
-  const [activeId, setActiveId] = useState<string | null>(
-    () => localStorage.getItem('nau_workspace_id'),
+  const [activeId, setActiveId] = useState<string | null>(() =>
+    localStorage.getItem('nau_workspace_id'),
   );
 
   const active = workspaces.find((w) => w.id === activeId);
@@ -156,8 +155,12 @@ function WorkspaceSelector() {
                 textAlign: 'left',
                 fontWeight: ws.id === activeId ? 600 : 400,
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+              }}
             >
               <span>{ws.name}</span>
               {ws.id === activeId && <Check size={13} style={{ color: '#58a6ff' }} />}
@@ -166,14 +169,24 @@ function WorkspaceSelector() {
 
           <div style={{ borderTop: '1px solid #21262d', padding: '4px 0' }}>
             {creating ? (
-              <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div
+                style={{
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
                 <input
                   autoFocus
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreate();
-                    if (e.key === 'Escape') { setCreating(false); setNewName(''); }
+                    if (e.key === 'Escape') {
+                      setCreating(false);
+                      setNewName('');
+                    }
                   }}
                   placeholder="Workspace name"
                   style={{
@@ -189,17 +202,46 @@ function WorkspaceSelector() {
                 />
                 <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                   <button
-                    onClick={() => { setCreating(false); setNewName(''); }}
-                    style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #30363d', background: 'transparent', color: '#8b949e', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                    onClick={() => {
+                      setCreating(false);
+                      setNewName('');
+                    }}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #30363d',
+                      background: 'transparent',
+                      color: '#8b949e',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
                   >
                     <X size={12} />
                   </button>
                   <button
                     onClick={handleCreate}
                     disabled={saving || !newName.trim()}
-                    style={{ padding: '4px 10px', borderRadius: '6px', background: '#58a6ff', border: 'none', color: 'white', fontSize: '12px', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '4px' }}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: '#58a6ff',
+                      border: 'none',
+                      color: 'white',
+                      fontSize: '12px',
+                      cursor: saving ? 'not-allowed' : 'pointer',
+                      opacity: saving ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
                   >
-                    {saving ? <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> : 'Create'}
+                    {saving ? (
+                      <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      'Create'
+                    )}
                   </button>
                 </div>
               </div>
@@ -219,8 +261,12 @@ function WorkspaceSelector() {
                   cursor: 'pointer',
                   textAlign: 'left',
                 }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = 'transparent';
+                }}
               >
                 <Plus size={14} /> Create a new workspace
               </button>
@@ -241,12 +287,14 @@ const globalNavItems = [
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   // Extract context from URL
   const brandMatch = location.pathname.match(/\/workspaces\/([^\/]+)\/brands\/([^\/]+)/);
   const workspaceIdMatch = location.pathname.match(/\/workspaces\/([^\/]+)/);
-  
-  const activeWorkspaceId = workspaceIdMatch ? workspaceIdMatch[1] : localStorage.getItem('nau_workspace_id');
+
+  const activeWorkspaceId = workspaceIdMatch
+    ? workspaceIdMatch[1]
+    : localStorage.getItem('nau_workspace_id');
   const activeBrandId = brandMatch ? brandMatch[2] : null;
 
   let navItems = globalNavItems;
@@ -282,7 +330,9 @@ export function Sidebar() {
     <aside className="sidebar">
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-        <div style={{ padding: '8px', background: '#58a6ff', borderRadius: '8px', display: 'flex' }}>
+        <div
+          style={{ padding: '8px', background: '#58a6ff', borderRadius: '8px', display: 'flex' }}
+        >
           <Video size={18} color="white" />
         </div>
         <span style={{ fontWeight: 800, fontSize: '17px', letterSpacing: '-0.02em' }}>

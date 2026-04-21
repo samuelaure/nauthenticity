@@ -10,7 +10,9 @@ export function AccountBreadcrumb({ activeUsername }: { activeUsername: string }
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getAccounts().then(setAccounts).catch(() => {});
+    getAccounts()
+      .then(setAccounts)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -79,8 +81,12 @@ export function AccountBreadcrumb({ activeUsername }: { activeUsername: string }
                 cursor: 'pointer',
                 textAlign: 'left',
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+              }}
             >
               <span>@{acc.username}</span>
               {acc.username === activeUsername && <Check size={13} style={{ color: '#58a6ff' }} />}

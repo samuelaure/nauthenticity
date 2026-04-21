@@ -19,7 +19,11 @@ export const BrandContentView = () => {
   const mainIgUsername = intelligence?.mainIgUsername;
 
   // 2. Fetch Account Details if username exists
-  const { data: account, isLoading: loadingAccount, isError: accountError } = useQuery({
+  const {
+    data: account,
+    isLoading: loadingAccount,
+    isError: accountError,
+  } = useQuery({
     queryKey: ['account', mainIgUsername],
     queryFn: () => getAccount(mainIgUsername!),
     enabled: !!mainIgUsername,
@@ -37,16 +41,32 @@ export const BrandContentView = () => {
 
   if (!mainIgUsername) {
     return (
-      <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+      <div
+        style={{
+          textAlign: 'center',
+          padding: '4rem 2rem',
+          background: 'var(--card-bg)',
+          borderRadius: '12px',
+          border: '1px solid var(--border)',
+        }}
+      >
         <AlertCircle size={48} style={{ color: '#8b949e', marginBottom: '1rem' }} />
         <h2>Main Instagram Account Not Set</h2>
         <p style={{ color: '#8b949e', maxWidth: '400px', margin: '0 auto 2rem' }}>
           Link this brand to its official Instagram profile to see and manage its content here.
         </p>
-        <button 
+        <button
           className="btn-primary"
           onClick={() => navigate('/workspace-settings')} // Or wherever brand settings will live
-          style={{ background: '#58a6ff', color: 'white', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}
+          style={{
+            background: '#58a6ff',
+            color: 'white',
+            border: 'none',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '6px',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
         >
           Go to Settings
         </button>

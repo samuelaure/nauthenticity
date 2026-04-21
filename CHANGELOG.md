@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file. See [standa
 ### [1.9.0](https://github.com/samuelaure/nauthenticity/compare/v1.8.6...v1.9.0) (2026-04-21)
 
 ### Features
+
 - **architecture:** implement platform-level Workspace -> Brand refactor
 - **dashboard:** new Brand Content viewer with AccountView parity
 - **dashboard:** new InspoBase module for creative syntheses and trend tracking

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Building2, Users, Loader2, Check, Settings } from 'lucide-react';
 import { getToken } from '../lib/auth';
 
-
 type Workspace = { id: string; name: string };
 type Member = {
   id: string;
@@ -138,7 +137,14 @@ export function WorkspaceSettings() {
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 0' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '60px 0',
+        }}
+      >
         <Loader2 size={28} color="#8b949e" style={{ animation: 'spin 1s linear infinite' }} />
       </div>
     );
@@ -167,13 +173,22 @@ export function WorkspaceSettings() {
       </div>
 
       {/* General / Name */}
-      <div style={{ border: '1px solid #21262d', borderRadius: '10px', overflow: 'hidden', marginBottom: '16px' }}>
+      <div
+        style={{
+          border: '1px solid #21262d',
+          borderRadius: '10px',
+          overflow: 'hidden',
+          marginBottom: '16px',
+        }}
+      >
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #21262d' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
             <Building2 size={15} color="#8b949e" />
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#f0f6fc' }}>General</span>
           </div>
-          <label style={{ display: 'block', fontSize: '12px', color: '#8b949e', marginBottom: '6px' }}>
+          <label
+            style={{ display: 'block', fontSize: '12px', color: '#8b949e', marginBottom: '6px' }}
+          >
             Workspace name
           </label>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -214,7 +229,9 @@ export function WorkspaceSettings() {
               {saving ? (
                 <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
               ) : saved ? (
-                <><Check size={13} /> Saved</>
+                <>
+                  <Check size={13} /> Saved
+                </>
               ) : (
                 'Save'
               )}
@@ -266,7 +283,9 @@ export function WorkspaceSettings() {
           {membersLoading ? (
             <p style={{ fontSize: '13px', color: '#8b949e' }}>Loading members…</p>
           ) : members.length === 0 ? (
-            <p style={{ fontSize: '13px', color: '#8b949e', fontStyle: 'italic' }}>No members found.</p>
+            <p style={{ fontSize: '13px', color: '#8b949e', fontStyle: 'italic' }}>
+              No members found.
+            </p>
           ) : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               {members.map((m) => (
@@ -285,9 +304,7 @@ export function WorkspaceSettings() {
                       {m.user.name ?? m.user.email}
                     </span>
                     {m.user.name && (
-                      <span style={{ fontSize: '12px', color: '#8b949e' }}>
-                        {m.user.email}
-                      </span>
+                      <span style={{ fontSize: '12px', color: '#8b949e' }}>{m.user.email}</span>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

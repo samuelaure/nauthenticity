@@ -31,9 +31,12 @@ function App() {
                     <Routes>
                       <Route path="/workspaces" element={<WorkspacesList />} />
                       <Route path="/workspaces/:workspaceId/brands" element={<BrandsList />} />
-                      <Route path="/workspaces/:workspaceId/brands/:brandId/*" element={<BrandLayout />} />
+                      <Route
+                        path="/workspaces/:workspaceId/brands/:brandId/*"
+                        element={<BrandLayout />}
+                      />
                       <Route path="/" element={<Navigate to="/workspaces" replace />} />
-                      
+
                       {/* Legacy Routes - kept for backwards compatibility during migration */}
                       <Route path="/accounts" element={<AccountsList />} />
                       <Route path="/accounts/:username" element={<AccountView />} />
