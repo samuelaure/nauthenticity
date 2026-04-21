@@ -8,8 +8,9 @@ import { pipeline } from 'stream/promises';
 import { createWriteStream } from 'fs';
 import { logContextStorage } from '../utils/context';
 import { computeQueue } from './compute.queue';
+import { optimizationQueue } from './optimization.queue';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-
+import { optimizeImage } from '../utils/media';
 
 const r2Client = config.env.R2_ENDPOINT
   ? new S3Client({
@@ -51,16 +52,16 @@ export const downloadWorker = new Worker(
         const { postId, mediaId, runId, url, type, username } = job.data as ProcessMediaData;
         logger.info(`[DownloadWorker] Downloading Media (${type}) for ${username}`);
 
-        const userDir = path.join(config.paths.storage, username, 'posts');
-        ensureDir(userDir);
+        const rawDir = path.join(config.paths.storage, 'raw', username, 'posts');
+        ensureDir(rawDir);
         ensureDir(config.paths.temp);
 
         const fileExt = type === 'video' ? 'mp4' : 'jpg';
-        const storageKey = `content/${username}/posts/${mediaId}.${fileExt}`;
-        const finalPath = path.join(userDir, `${mediaId}.${fileExt}`);
+        const storageKey = `raw/${username}/posts/${mediaId}.${fileExt}`;
+        const finalPath = path.join(rawDir, `${mediaId}.${fileExt}`);
         const publicUrl = config.env.R2_PUBLIC_URL
           ? `${config.env.R2_PUBLIC_URL}/${storageKey}`
-          : `/content/${username}/posts/${mediaId}.${fileExt}`;
+          : `/content/raw/${username}/posts/${mediaId}.${fileExt}`;
 
         const tempFilePath = path.join(
           config.paths.temp,
@@ -120,23 +121,51 @@ export const downloadWorker = new Worker(
             const pendingCount = await prisma.media.count({
               where: {
                 post: { runId: runId },
-                storageUrl: { not: { startsWith: '/content/' } },
+                NOT: [
+                  { storageUrl: { startsWith: config.env.R2_PUBLIC_URL ? `${config.env.R2_PUBLIC_URL}/` : `/content/` } }
+                ]
               },
             });
 
             if (pendingCount === 0) {
-              logger.info(
-                `[DownloadWorker] Run ${runId} fully downloaded. Transitioning to VISUALIZING.`,
-              );
+              const runState = await prisma.scrapingRun.findUnique({ where: { id: runId } });
+              if (runState?.phase === 'downloading') {
+                logger.info(`[DownloadWorker] Run ${runId} fully downloaded. Securing raw forms complete. Transitioning to OPTIMIZING.`);
+                
+                await prisma.scrapingRun.update({
+                  where: { id: runId },
+                  data: { phase: 'optimizing' },
+                });
 
-              await prisma.scrapingRun.update({
-                where: { id: runId },
-                data: { phase: 'visualizing' },
-              });
+                // Find all media that are currently in raw state
+                const rawMedia = await prisma.media.findMany({
+                  where: { 
+                    post: { runId: runId },
+                    storageUrl: { contains: '/raw/' } // Targets raw entries explicitly
+                  }
+                });
 
-              // Kick off the first step of the compute pipeline.
-              // The pipeline order is defined in compute.worker.ts PIPELINE constant.
-              await computeQueue.add('visualize-batch', { runId, username });
+                if (rawMedia.length > 0) {
+                  for (const m of rawMedia) {
+                    await optimizationQueue.add('optimize-media', {
+                      runId,
+                      mediaId: m.id,
+                      username,
+                      rawUrl: m.storageUrl,
+                      type: m.type as 'image'|'video',
+                      fileExt: m.type === 'video' ? 'mp4' : 'jpg'
+                    }, { attempts: 3, backoff: { type: 'exponential', delay: 5000 } });
+                  }
+                } else {
+                  // Fallback if no media needed optimization? Extremely rare
+                  logger.warn(`[DownloadWorker] Reached optimization transition but found no raw media fields. Skipping to visualizing.`);
+                  await prisma.scrapingRun.update({
+                    where: { id: runId },
+                    data: { phase: 'visualizing' },
+                  });
+                  await computeQueue.add('visualize-batch', { runId, username });
+                }
+              }
             }
           }
 
