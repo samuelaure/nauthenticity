@@ -7,10 +7,11 @@ Central intelligence engine and **canonical Brand Registry** for the naŭ Platfo
 Node.js, Fastify, Prisma, PostgreSQL (`pgvector`), OpenAI, Apify, node-cron, date-fns-tz.
 
 ## Core Capabilities
+- **Workspace -> Brand Architecture**: Full alignment with `flownaŭ`. Resources are fully scoped under Workspaces, which contain Brands. Brands encompass their own Content (canonically linked via `mainIgUsername`), InspoBase, Comments Suggester suites (Monitored Profiles & Single Posts), and Benchmark tracking limits.
 - **Brand Registry (Source of Truth)**: Canonical brand identity for the entire naŭ Platform. All apps create/read/update brands via nauthenticity API. Brands are isolated by `workspaceId` (pointing to 9naŭ Workspace).
 - **Brand DNA Ownership**: `Brand.voicePrompt` is the canonical Brand DNA. Served in Full (high-token) and Ultra-Light (low-token) tiers.
 - Submitting bulk scraping requests to Apify.
-- Mapping extracted data against active configured Brand constraints.
+- Mapping extracted data against active configured Brand constraints based on `targetType` (Monitored, Benchmark, Single Post).
 - **5-Level Prompt Comment Generation**: Generates brand-voice-consistent, language-aware Instagram comment suggestions using a structured multi-level prompt (Brand DNA → Comment Strategy → Profile Strategy → Recent Comments Context → Post).
 - **Smart Fanout Scheduler**: Internal cron (every 15 min) evaluates each brand's delivery window to apply either a 15-min (in-window) or 60-min (out-of-window) scraping threshold per account — minimizing Apify API calls.
 - **InspoBase & Synthesis Engine**: Mechanical rolling synthesis of inspiration items into Brand Digests for flownaŭ's ideation engine.
@@ -39,9 +40,9 @@ Node.js, Fastify, Prisma, PostgreSQL (`pgvector`), OpenAI, Apify, node-cron, dat
 - `GET /api/v1/inspo?brandId=` — List InspoItems. Requires `NAU_SERVICE_KEY`.
 - `GET /api/v1/inspo/digest?brandId=` — Get mechanical InspoBase Synthesis digest. Requires `NAU_SERVICE_KEY`.
 
-### Targets
-- `POST /api/v1/targets` — Upsert monitored profiles. Requires `NAU_SERVICE_KEY`.
-- `PUT /api/v1/targets/:brandId/:username` — Update profileStrategy. Requires `NAU_SERVICE_KEY`.
+### Targets (Monitored, Benchmark, Single Posts)
+- `POST /api/v1/targets` — Upsert profiles with specific `targetType` ('monitored', 'benchmark', 'single_post'). Requires `NAU_SERVICE_KEY`.
+- `PUT /api/v1/targets/:brandId/:username` — Update properties like `profileStrategy`, `isActive`, `initialDownloadCount`, `autoUpdate`. Requires `NAU_SERVICE_KEY`.
 - `DELETE /api/v1/targets?brandId=&username=` — Remove a target. Requires `NAU_SERVICE_KEY`.
 
 ## Environment Variables
