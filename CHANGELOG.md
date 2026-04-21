@@ -2,49 +2,54 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.9.0](https://github.com/samuelaure/nauthenticity/compare/v1.8.6...v1.9.0) (2026-04-21)
+
+### Features
+- **architecture:** implement platform-level Workspace -> Brand refactor
+- **dashboard:** new Brand Content viewer with AccountView parity
+- **dashboard:** new InspoBase module for creative syntheses and trend tracking
+- **dashboard:** new Comments Suggester with Monitored Profiles and Single Post ad-hoc generation
+- **dashboard:** new Benchmarks module with competitor configuration tracking
+- **api:** introduced dashboard BFF controller for unauthenticated UI interactions
+- **lib:** extracted reusable PostGrid component to unify Instagram visualization
+
 ### [1.8.6](https://github.com/samuelaure/nauthenticity/compare/v1.8.5...v1.8.6) (2026-04-21)
 
 ### [1.8.5](https://github.com/samuelaure/nauthenticity/compare/v1.8.4...v1.8.5) (2026-04-21)
 
-
 ### Features
 
-* **workspace:** add workspace settings page and sidebar link ([ac75e20](https://github.com/samuelaure/nauthenticity/commit/ac75e20bbf5fd2f53e6ab15038a9f43005b413f0))
+- **workspace:** add workspace settings page and sidebar link ([ac75e20](https://github.com/samuelaure/nauthenticity/commit/ac75e20bbf5fd2f53e6ab15038a9f43005b413f0))
 
 ### [1.8.4](https://github.com/samuelaure/nauthenticity/compare/v1.8.3...v1.8.4) (2026-04-21)
 
-
 ### Bug Fixes
 
-* update Sidebar for workspace creation and error logging ([95adaf0](https://github.com/samuelaure/nauthenticity/commit/95adaf082897244c46fc4c95c22c5148bce16438))
+- update Sidebar for workspace creation and error logging ([95adaf0](https://github.com/samuelaure/nauthenticity/commit/95adaf082897244c46fc4c95c22c5148bce16438))
 
 ### [1.8.3](https://github.com/samuelaure/nauthenticity/compare/v1.8.2...v1.8.3) (2026-04-21)
 
-
 ### Bug Fixes
 
-* **dashboard:** resolve tsc build errors for unused variables and missing imports ([63f3416](https://github.com/samuelaure/nauthenticity/commit/63f341623ef4434fcb8f59b5ee6ca7313b312bd3))
+- **dashboard:** resolve tsc build errors for unused variables and missing imports ([63f3416](https://github.com/samuelaure/nauthenticity/commit/63f341623ef4434fcb8f59b5ee6ca7313b312bd3))
 
 ### [1.8.2](https://github.com/samuelaure/nauthenticity/compare/v1.8.1...v1.8.2) (2026-04-20)
 
-
 ### Features
 
-* **dashboard:** refactor layout and improve navigation with sidebar and breadcrumbs ([e4dc788](https://github.com/samuelaure/nauthenticity/commit/e4dc788447bc16b68f3a107ad13ad5e836914424))
+- **dashboard:** refactor layout and improve navigation with sidebar and breadcrumbs ([e4dc788](https://github.com/samuelaure/nauthenticity/commit/e4dc788447bc16b68f3a107ad13ad5e836914424))
 
 ### [1.8.1](https://github.com/samuelaure/nauthenticity/compare/v1.8.0...v1.8.1) (2026-04-20)
 
-
 ### Bug Fixes
 
-* **platform:** consolidate sso, infrastructure and intelligence stabilization ([0d3ebdd](https://github.com/samuelaure/nauthenticity/commit/0d3ebdda5b192cc7c8ed5d84a8a844879e9926a1))
+- **platform:** consolidate sso, infrastructure and intelligence stabilization ([0d3ebdd](https://github.com/samuelaure/nauthenticity/commit/0d3ebdda5b192cc7c8ed5d84a8a844879e9926a1))
 
 ## [1.8.0](https://github.com/samuelaure/nauthenticity/compare/v1.7.2...v1.8.0) (2026-04-20)
 
-
 ### Features
 
-* **phase-19:** implement graceful platform-level voice and strategy fallbacks ([5edb201](https://github.com/samuelaure/nauthenticity/commit/5edb201e0ad5314cbd2f8df89bbdfd8aa6a1024c))
+- **phase-19:** implement graceful platform-level voice and strategy fallbacks ([5edb201](https://github.com/samuelaure/nauthenticity/commit/5edb201e0ad5314cbd2f8df89bbdfd8aa6a1024c))
 
 ### [1.7.2](https://github.com/samuelaure/nauthenticity/compare/v1.7.1...v1.7.2) (2026-04-20)
 
