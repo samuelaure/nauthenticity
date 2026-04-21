@@ -1,10 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { BrandContentView } from './BrandContentView';
+import { BrandInspoBaseView } from './BrandInspoBaseView';
 
 export const BrandLayout = () => {
   return (
     <Routes>
-      <Route path="content" element={<div>Content Module (Phase 3)</div>} />
-      <Route path="inspobase" element={<div>InspoBase Module (Phase 3)</div>} />
+      <Route path="content" element={<BrandContentView />} />
+      <Route path="inspobase" element={<BrandInspoBaseView />} />
       <Route path="comments/*" element={<div>Comments Suggester Module (Phase 4)</div>} />
       <Route path="benchmark" element={<div>Benchmark Module (Phase 5)</div>} />
       
