@@ -11,6 +11,7 @@ import {
   X,
   Loader,
   Video,
+  Settings,
 } from 'lucide-react';
 
 const NAU_API_URL =
@@ -62,6 +63,7 @@ function WorkspaceSelector() {
     setActiveId(id);
     localStorage.setItem('nau_workspace_id', id);
     setOpen(false);
+    navigate('/');
   };
 
   const handleCreate = async () => {
@@ -234,11 +236,19 @@ function WorkspaceSelector() {
 const navItems = [
   { label: 'Overview', to: '/', icon: LayoutDashboard },
   { label: 'Progress', to: '/progress', icon: Activity },
+  { label: 'Settings', to: '/workspace-settings', icon: Settings },
 ];
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const activeWorkspaceId = localStorage.getItem('nau_workspace_id');
+
+  const resolvedNavItems = navItems.filter((item) => {
+    // Hide Settings if no workspace is selected
+    if (item.label === 'Settings' && !activeWorkspaceId) return false;
+    return true;
+  });
 
   const handleSignOut = () => {
     clearToken();
@@ -263,7 +273,7 @@ export function Sidebar() {
 
       {/* Nav links */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-        {navItems.map(({ label, to, icon: Icon }) => {
+        {resolvedNavItems.map(({ label, to, icon: Icon }) => {
           const isActive =
             to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
           return (
