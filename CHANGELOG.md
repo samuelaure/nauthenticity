@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.8.5](https://github.com/samuelaure/nauthenticity/compare/v1.8.4...v1.8.5) (2026-04-21)
+
+
+### Features
+
+* **workspace:** add workspace settings page and sidebar link ([ac75e20](https://github.com/samuelaure/nauthenticity/commit/ac75e20bbf5fd2f53e6ab15038a9f43005b413f0))
+
 ### [1.8.4](https://github.com/samuelaure/nauthenticity/compare/v1.8.3...v1.8.4) (2026-04-21)
 
 
