@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { Building2, Users, Loader2, Check, Settings } from 'lucide-react';
 import { getToken } from '../lib/auth';
 
-const NAU_API_URL =
-  (import.meta.env.VITE_NAU_API_URL as string | undefined) ?? 'https://api.9nau.com';
 
 type Workspace = { id: string; name: string };
 type Member = {

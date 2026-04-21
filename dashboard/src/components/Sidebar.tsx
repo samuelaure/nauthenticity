@@ -12,10 +12,9 @@ import {
   Loader,
   Video,
   Settings,
+  Shield,
 } from 'lucide-react';
 
-const NAU_API_URL =
-  (import.meta.env.VITE_NAU_API_URL as string | undefined) ?? 'https://api.9nau.com';
 
 type Workspace = { id: string; name: string };
 
@@ -233,7 +232,7 @@ function WorkspaceSelector() {
   );
 }
 
-const navItems = [
+const globalNavItems = [
   { label: 'Overview', to: '/', icon: LayoutDashboard },
   { label: 'Progress', to: '/progress', icon: Activity },
   { label: 'Settings', to: '/workspace-settings', icon: Settings },
@@ -242,7 +241,30 @@ const navItems = [
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const activeWorkspaceId = localStorage.getItem('nau_workspace_id');
+  
+  // Extract context from URL
+  const brandMatch = location.pathname.match(/\/workspaces\/([^\/]+)\/brands\/([^\/]+)/);
+  const workspaceIdMatch = location.pathname.match(/\/workspaces\/([^\/]+)/);
+  
+  const activeWorkspaceId = workspaceIdMatch ? workspaceIdMatch[1] : localStorage.getItem('nau_workspace_id');
+  const activeBrandId = brandMatch ? brandMatch[2] : null;
+
+  let navItems = globalNavItems;
+
+  if (activeBrandId && activeWorkspaceId) {
+    const baseUrl = `/workspaces/${activeWorkspaceId}/brands/${activeBrandId}`;
+    navItems = [
+      { label: 'Content', to: `${baseUrl}/content`, icon: LayoutDashboard },
+      { label: 'InspoBase', to: `${baseUrl}/inspobase`, icon: Activity },
+      { label: 'Comments', to: `${baseUrl}/comments`, icon: Settings },
+      { label: 'Benchmark', to: `${baseUrl}/benchmark`, icon: Activity },
+    ];
+  } else if (activeWorkspaceId) {
+    navItems = [
+      { label: 'Brands', to: `/workspaces/${activeWorkspaceId}/brands`, icon: Shield },
+      { label: 'Settings', to: '/workspace-settings', icon: Settings },
+    ];
+  }
 
   const resolvedNavItems = navItems.filter((item) => {
     // Hide Settings if no workspace is selected
