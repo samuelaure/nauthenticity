@@ -38,7 +38,6 @@ function WorkspaceSelector() {
     const token = getToken();
     fetch(`${NAU_API_URL}/api/workspaces`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
-      credentials: 'include',
     })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Workspace[]) => {
@@ -76,18 +75,21 @@ function WorkspaceSelector() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        credentials: 'include',
         body: JSON.stringify({ name: newName.trim() }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.text();
+        console.error('[WorkspaceSelector] create failed', res.status, err);
+        throw new Error(err);
+      }
       const created: Workspace = await res.json();
       setWorkspaces((ws) => [...ws, created]);
       select(created.id);
       setCreating(false);
       setNewName('');
       navigate('/');
-    } catch {
-      // silent
+    } catch (e) {
+      console.error('[WorkspaceSelector] create error', e);
     } finally {
       setSaving(false);
     }
