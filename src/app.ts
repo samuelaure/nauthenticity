@@ -24,6 +24,7 @@ import { analyticsController } from './modules/analytics/analytics.controller';
 import { proactiveController } from './modules/proactive/proactive.controller';
 import { inspoController } from './modules/content/inspo.controller';
 import { workspacesController } from './modules/workspaces/workspaces.controller';
+import { dashboardController } from './modules/workspaces/dashboard.controller';
 
 const fastify = Fastify({
   logger: true,
@@ -107,6 +108,8 @@ fastify.register(analyticsController, { prefix: '/api' });
 fastify.register(proactiveController, { prefix: '/api' });
 fastify.register(inspoController, { prefix: '/api' });
 fastify.register(workspacesController, { prefix: '/api' });
+fastify.register(dashboardController, { prefix: '/api' });
+
 const start = async () => {
   try {
     // D2: Startup Readiness Check
