@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.10.0](https://github.com/samuelaure/nauthenticity/compare/v1.9.0...v1.10.0) (2026-04-21)
+
+
+### Features
+
+* **dashboard:** implement comments suggester and benchmark UI modules ([f22df18](https://github.com/samuelaure/nauthenticity/commit/f22df18e6d1746afbf51eeacc7860ff71703d6bd))
+* **pipeline:** stabilize media pipeline with R2 integration and robust error handling ([97328c3](https://github.com/samuelaure/nauthenticity/commit/97328c3fa08cf96f90e1ba4340d98dc811cc2380))
+* **worker:** decouple optimization and stream raw media directly to r2 buffer ([9939a4f](https://github.com/samuelaure/nauthenticity/commit/9939a4f5ffbdabf5180a9016af91f30a4465a257))
+* **worker:** implement low-concurrency optimization queue for cloud-first pipeline ([e9956de](https://github.com/samuelaure/nauthenticity/commit/e9956de80a7d0e3d057f1149127791a6854d23ce))
+
 ### [1.9.0](https://github.com/samuelaure/nauthenticity/compare/v1.8.6...v1.9.0) (2026-04-21)
 
 ### Features
