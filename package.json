@@ -20,6 +20,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node src/db/seed.ts",
+    "migrate:r2": "ts-node src/scripts/migrate-to-r2.ts",
     "release": "standard-version"
   },
   "repository": {

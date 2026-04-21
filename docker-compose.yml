@@ -55,6 +55,11 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - NAU_SERVICE_KEY=${NAU_SERVICE_KEY}
       - TRANSCRIPTION_URL=${TRANSCRIPTION_URL:-http://whisper:8000}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
     volumes:
       - ./storage:/app/storage
     networks:
