@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.8.3](https://github.com/samuelaure/nauthenticity/compare/v1.8.2...v1.8.3) (2026-04-21)
+
+
+### Bug Fixes
+
+* **dashboard:** resolve tsc build errors for unused variables and missing imports ([63f3416](https://github.com/samuelaure/nauthenticity/commit/63f341623ef4434fcb8f59b5ee6ca7313b312bd3))
+
 ### [1.8.2](https://github.com/samuelaure/nauthenticity/compare/v1.8.1...v1.8.2) (2026-04-20)
 
 
