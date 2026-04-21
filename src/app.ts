@@ -12,10 +12,10 @@ import { logger } from './utils/logger';
 import { errorHandler } from './utils/errorHandler';
 import { startScheduler } from './scheduler';
 
-// Import Workers (Registers them with BullMQ)
 import { downloadWorker } from './queues/download.worker';
 import { computeWorker } from './queues/compute.worker';
 import { ingestionWorker } from './queues/ingestion.worker';
+import { optimizationWorker } from './queues/optimization.worker';
 
 // Import Controllers
 import { ingestionController } from './modules/ingestion/ingestion.controller';
@@ -63,18 +63,19 @@ fastify.register(fastifyStatic, {
 
 // Set Global Error Handler
 fastify.setErrorHandler(errorHandler);
-
 import { ingestionQueue } from './queues/ingestion.queue';
 import { downloadQueue } from './queues/download.queue';
 import { computeQueue } from './queues/compute.queue';
+import { optimizationQueue } from './queues/optimization.queue';
 
 // Register Routes/Controllers
 fastify.get('/health', async () => {
-  const [dbHealth, ingestionCount, processingCount, computeCount] = await Promise.all([
+  const [dbHealth, ingestionCount, processingCount, computeCount, optimizationCount] = await Promise.all([
     prisma.$queryRaw`SELECT 1`.then(() => 'ok').catch(() => 'error'),
     ingestionQueue.getJobCounts().catch(() => ({})),
     downloadQueue.getJobCounts().catch(() => ({})),
     computeQueue.getJobCounts().catch(() => ({})),
+    optimizationQueue.getJobCounts().catch(() => ({})),
   ]);
 
   return {
@@ -88,6 +89,7 @@ fastify.get('/health', async () => {
       ingestionQueue: ingestionCount,
       downloadQueue: processingCount,
       computeQueue: computeCount,
+      optimizationQueue: optimizationCount,
     },
   };
 });
@@ -142,7 +144,12 @@ const shutdown = async (signal: string) => {
 
     // B2: Graceful Shutdown for Workers
     logger.info('[App] Closing BullMQ workers...');
-    await Promise.all([ingestionWorker.close(), downloadWorker.close(), computeWorker.close()]);
+    await Promise.all([
+      ingestionWorker.close(), 
+      downloadWorker.close(), 
+      optimizationWorker.close(), 
+      computeWorker.close()
+    ]);
     logger.info('[App] All BullMQ workers closed.');
 
     await prisma.$disconnect();
