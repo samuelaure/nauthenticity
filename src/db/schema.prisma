@@ -114,6 +114,9 @@ model BrandIntelligence {
   /// workspaceId is kept as an operational routing reference for dispatch (not a structural copy).
   workspaceId      String   @default("")
 
+  /// The brand's own canonical Instagram username (drives the Content section).
+  mainIgUsername   String?
+
   voicePrompt      String   @db.Text  // Brand DNA — primary personality prompt
   commentStrategy  String?  @db.Text
   suggestionsCount Int      @default(3)
@@ -146,6 +149,10 @@ model BrandSynthesis {
   @@index([brandId, type])
 }
 
+/// targetType controls which UI section owns this profile:
+///   'monitored'   — Comments Suggester > Monitored Profiles
+///   'benchmark'   — Benchmark section
+///   'single_post' — Comments Suggester > Single Posts
 model BrandTarget {
   id               String    @id @default(uuid())
   brandId          String
@@ -154,9 +161,22 @@ model BrandTarget {
   igProfile        IgProfile @relation(fields: [username], references: [username])
   profileStrategy  String?   @db.Text
 
+  /// Which operational section owns this target.
+  targetType       String    @default("monitored")
+
+  /// Whether active monitoring / benchmarking is enabled for this target.
+  isActive         Boolean   @default(true)
+
+  /// Benchmark: number of posts to download on first addition.
+  initialDownloadCount Int?  @default(20)
+
+  /// Benchmark: whether to automatically pull new posts when detected.
+  autoUpdate       Boolean?  @default(false)
+
   createdAt        DateTime @default(now())
 
   @@unique([brandId, username])
+  @@index([brandId, targetType])
 }
 
 model CommentFeedback {
