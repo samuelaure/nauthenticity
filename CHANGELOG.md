@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.8.4](https://github.com/samuelaure/nauthenticity/compare/v1.8.3...v1.8.4) (2026-04-21)
+
+
+### Bug Fixes
+
+* update Sidebar for workspace creation and error logging ([95adaf0](https://github.com/samuelaure/nauthenticity/commit/95adaf082897244c46fc4c95c22c5148bce16438))
+
 ### [1.8.3](https://github.com/samuelaure/nauthenticity/compare/v1.8.2...v1.8.3) (2026-04-21)
 
 
