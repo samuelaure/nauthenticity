@@ -122,16 +122,24 @@ export const downloadWorker = new Worker(
               where: {
                 post: { runId: runId },
                 NOT: [
-                  { storageUrl: { startsWith: config.env.R2_PUBLIC_URL ? `${config.env.R2_PUBLIC_URL}/` : `/content/` } }
-                ]
+                  {
+                    storageUrl: {
+                      startsWith: config.env.R2_PUBLIC_URL
+                        ? `${config.env.R2_PUBLIC_URL}/`
+                        : `/content/`,
+                    },
+                  },
+                ],
               },
             });
 
             if (pendingCount === 0) {
               const runState = await prisma.scrapingRun.findUnique({ where: { id: runId } });
               if (runState?.phase === 'downloading') {
-                logger.info(`[DownloadWorker] Run ${runId} fully downloaded. Securing raw forms complete. Transitioning to OPTIMIZING.`);
-                
+                logger.info(
+                  `[DownloadWorker] Run ${runId} fully downloaded. Securing raw forms complete. Transitioning to OPTIMIZING.`,
+                );
+
                 await prisma.scrapingRun.update({
                   where: { id: runId },
                   data: { phase: 'optimizing' },
@@ -139,26 +147,32 @@ export const downloadWorker = new Worker(
 
                 // Find all media that are currently in raw state
                 const rawMedia = await prisma.media.findMany({
-                  where: { 
+                  where: {
                     post: { runId: runId },
-                    storageUrl: { contains: '/raw/' } // Targets raw entries explicitly
-                  }
+                    storageUrl: { contains: '/raw/' }, // Targets raw entries explicitly
+                  },
                 });
 
                 if (rawMedia.length > 0) {
                   for (const m of rawMedia) {
-                    await optimizationQueue.add('optimize-media', {
-                      runId,
-                      mediaId: m.id,
-                      username,
-                      rawUrl: m.storageUrl,
-                      type: m.type as 'image'|'video',
-                      fileExt: m.type === 'video' ? 'mp4' : 'jpg'
-                    }, { attempts: 3, backoff: { type: 'exponential', delay: 5000 } });
+                    await optimizationQueue.add(
+                      'optimize-media',
+                      {
+                        runId,
+                        mediaId: m.id,
+                        username,
+                        rawUrl: m.storageUrl,
+                        type: m.type as 'image' | 'video',
+                        fileExt: m.type === 'video' ? 'mp4' : 'jpg',
+                      },
+                      { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+                    );
                   }
                 } else {
                   // Fallback if no media needed optimization? Extremely rare
-                  logger.warn(`[DownloadWorker] Reached optimization transition but found no raw media fields. Skipping to visualizing.`);
+                  logger.warn(
+                    `[DownloadWorker] Reached optimization transition but found no raw media fields. Skipping to visualizing.`,
+                  );
                   await prisma.scrapingRun.update({
                     where: { id: runId },
                     data: { phase: 'visualizing' },

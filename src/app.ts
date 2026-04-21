@@ -70,13 +70,14 @@ import { optimizationQueue } from './queues/optimization.queue';
 
 // Register Routes/Controllers
 fastify.get('/health', async () => {
-  const [dbHealth, ingestionCount, processingCount, computeCount, optimizationCount] = await Promise.all([
-    prisma.$queryRaw`SELECT 1`.then(() => 'ok').catch(() => 'error'),
-    ingestionQueue.getJobCounts().catch(() => ({})),
-    downloadQueue.getJobCounts().catch(() => ({})),
-    computeQueue.getJobCounts().catch(() => ({})),
-    optimizationQueue.getJobCounts().catch(() => ({})),
-  ]);
+  const [dbHealth, ingestionCount, processingCount, computeCount, optimizationCount] =
+    await Promise.all([
+      prisma.$queryRaw`SELECT 1`.then(() => 'ok').catch(() => 'error'),
+      ingestionQueue.getJobCounts().catch(() => ({})),
+      downloadQueue.getJobCounts().catch(() => ({})),
+      computeQueue.getJobCounts().catch(() => ({})),
+      optimizationQueue.getJobCounts().catch(() => ({})),
+    ]);
 
   return {
     status: dbHealth === 'ok' ? 'ok' : 'degraded',
@@ -145,10 +146,10 @@ const shutdown = async (signal: string) => {
     // B2: Graceful Shutdown for Workers
     logger.info('[App] Closing BullMQ workers...');
     await Promise.all([
-      ingestionWorker.close(), 
-      downloadWorker.close(), 
-      optimizationWorker.close(), 
-      computeWorker.close()
+      ingestionWorker.close(),
+      downloadWorker.close(),
+      optimizationWorker.close(),
+      computeWorker.close(),
     ]);
     logger.info('[App] All BullMQ workers closed.');
 

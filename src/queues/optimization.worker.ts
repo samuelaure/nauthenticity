@@ -47,7 +47,7 @@ export const optimizationWorker = new Worker(
 
         const tempRawPath = path.join(config.paths.temp, `${mediaId}_raw_opt.${fileExt}`);
         const tempOptimizedPath = path.join(config.paths.temp, `${mediaId}_final_opt.${fileExt}`);
-        
+
         const finalStorageKey = `content/${username}/posts/${mediaId}.${fileExt}`;
         const rawStorageKey = `raw/${username}/posts/${mediaId}.${fileExt}`;
         const publicUrl = config.env.R2_PUBLIC_URL
@@ -81,25 +81,36 @@ export const optimizationWorker = new Worker(
                 ContentType: type === 'video' ? 'video/mp4' : 'image/jpeg',
               }),
             );
-            
+
             // 4. Delete Raw from R2
             logger.info(`[OptimizationWorker] Deleting raw media ${mediaId} from R2`);
             await r2Client.send(
               new DeleteObjectCommand({
-                 Bucket: config.env.R2_BUCKET_NAME,
-                 Key: rawStorageKey,
-              })
+                Bucket: config.env.R2_BUCKET_NAME,
+                Key: rawStorageKey,
+              }),
             );
           } else {
             // Fallback Logic (Local)
-            const localRawPath = path.join(config.paths.storage, 'raw', username, 'posts', `${mediaId}.${fileExt}`);
-            const finalLocalPath = path.join(config.paths.storage, username, 'posts', `${mediaId}.${fileExt}`);
-            
+            const localRawPath = path.join(
+              config.paths.storage,
+              'raw',
+              username,
+              'posts',
+              `${mediaId}.${fileExt}`,
+            );
+            const finalLocalPath = path.join(
+              config.paths.storage,
+              username,
+              'posts',
+              `${mediaId}.${fileExt}`,
+            );
+
             if (fs.existsSync(localRawPath)) {
               if (type === 'video') {
-                 await optimizeVideo(localRawPath, tempOptimizedPath);
+                await optimizeVideo(localRawPath, tempOptimizedPath);
               } else {
-                 await optimizeImage(localRawPath, tempOptimizedPath);
+                await optimizeImage(localRawPath, tempOptimizedPath);
               }
               ensureDir(path.dirname(finalLocalPath));
               fs.copyFileSync(tempOptimizedPath, finalLocalPath);
@@ -117,14 +128,16 @@ export const optimizationWorker = new Worker(
           const countPendingOptimization = await prisma.media.count({
             where: {
               post: { runId: runId },
-              storageUrl: { contains: '/raw/' }
+              storageUrl: { contains: '/raw/' },
             },
           });
 
           if (countPendingOptimization === 0) {
             const run = await prisma.scrapingRun.findUnique({ where: { id: runId } });
             if (run?.phase === 'optimizing') {
-              logger.info(`[OptimizationWorker] Run ${runId} fully optimized. Transitioning to VISUALIZING.`);
+              logger.info(
+                `[OptimizationWorker] Run ${runId} fully optimized. Transitioning to VISUALIZING.`,
+              );
               await prisma.scrapingRun.update({
                 where: { id: runId },
                 data: { phase: 'visualizing' },
@@ -132,7 +145,6 @@ export const optimizationWorker = new Worker(
               await computeQueue.add('visualize-batch', { runId, username });
             }
           }
-
         } catch (error) {
           logger.error(`[OptimizationWorker] Failed to optimize media ${mediaId}: ${error}`);
           throw error;
@@ -143,7 +155,7 @@ export const optimizationWorker = new Worker(
       }
     });
   },
-  { connection: config.redis, concurrency: 1 } // Low concurrency to protect CPU from starvation
+  { connection: config.redis, concurrency: 1 }, // Low concurrency to protect CPU from starvation
 );
 
 optimizationWorker.on('failed', (job, err) => {
