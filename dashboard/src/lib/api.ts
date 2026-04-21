@@ -247,3 +247,31 @@ export const updateInspoItem = async (id: string, updates: any) => {
   const { data } = await api.post(`/inspo/${id}/process`, updates);
   return data;
 };
+
+export const getBrandTargets = async (brandId: string, targetType?: string) => {
+  const url = targetType
+    ? `/targets?brandId=${brandId}&targetType=${targetType}`
+    : `/targets?brandId=${brandId}`;
+  const { data } = await api.get(url);
+  return data;
+};
+
+export const addBrandTarget = async (payload: {
+  brandId: string;
+  username: string;
+  targetType: string;
+  isActive?: boolean;
+}) => {
+  const { data } = await api.post(`/targets`, payload);
+  return data;
+};
+
+export const updateBrandTarget = async (id: string, updates: { isActive: boolean }) => {
+  const { data } = await api.patch(`/targets/${id}`, updates);
+  return data;
+};
+
+export const generateComment = async (payload: { brandId: string; targetUrl: string }) => {
+  const { data } = await api.post(`/generate-comment`, payload);
+  return data;
+};
