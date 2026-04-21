@@ -61,4 +61,10 @@ export const workspacesController = async (fastify: FastifyInstance) => {
     const { id, userId } = req.params as { id: string; userId: string };
     return proxyRequest(req, rep, `/api/workspaces/${id}/members/${userId}`, 'DELETE');
   });
+
+  // Get brands for workspace
+  fastify.get('/workspaces/:id/brands', (req, rep) => {
+    const { id } = req.params as { id: string };
+    return proxyRequest(req, rep, `/api/brands?workspaceId=${id}`);
+  });
 };
