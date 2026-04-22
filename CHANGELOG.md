@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.11.1](https://github.com/samuelaure/nauthenticity/compare/v1.10.2...v1.11.1) (2026-04-22)
+
+
+### Features
+
+* **proactive:** implement structural sync and brand discovery for 9naŭ integration ([20d3dd8](https://github.com/samuelaure/nauthenticity/commit/20d3dd8a7840f0788e8df971687bae35173e41d3))
+* **service:** add structural sync endpoints and update intelligence schema ([1c93226](https://github.com/samuelaure/nauthenticity/commit/1c9322613f021b524487625da0e312c95776519f))
+
 ## [1.11.0](https://github.com/samuelaure/nauthenticity/compare/v1.10.2...v1.11.0) (2026-04-22)
 
 
