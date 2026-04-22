@@ -38,41 +38,41 @@ export const workspacesController = async (fastify: FastifyInstance) => {
   };
 
   // List all workspaces for current user
-  fastify.get('/workspaces', (req, rep) => proxyRequest(req, rep, '/api/workspaces'));
+  fastify.get('/workspaces', (req, rep) => proxyRequest(req, rep, '/workspaces'));
 
   // Get members of a specific workspace
   fastify.get('/workspaces/:id/members', (req, rep) => {
     const { id } = req.params as { id: string };
-    return proxyRequest(req, rep, `/api/workspaces/${id}/members`);
+    return proxyRequest(req, rep, `/workspaces/${id}/members`);
   });
 
   // Rename workspace
   fastify.patch('/workspaces/:id', (req, rep) => {
     const { id } = req.params as { id: string };
-    return proxyRequest(req, rep, `/api/workspaces/${id}`, 'PATCH');
+    return proxyRequest(req, rep, `/workspaces/${id}`, 'PATCH');
   });
 
   // Update member role
   fastify.put('/workspaces/:id/members/:userId', (req, rep) => {
     const { id, userId } = req.params as { id: string; userId: string };
-    return proxyRequest(req, rep, `/api/workspaces/${id}/members/${userId}`, 'PUT');
+    return proxyRequest(req, rep, `/workspaces/${id}/members/${userId}`, 'PUT');
   });
 
   // Add member
   fastify.post('/workspaces/:id/members', (req, rep) => {
     const { id } = req.params as { id: string };
-    return proxyRequest(req, rep, `/api/workspaces/${id}/members`, 'POST');
+    return proxyRequest(req, rep, `/workspaces/${id}/members`, 'POST');
   });
 
   // Remove member
   fastify.delete('/workspaces/:id/members/:userId', (req, rep) => {
     const { id, userId } = req.params as { id: string; userId: string };
-    return proxyRequest(req, rep, `/api/workspaces/${id}/members/${userId}`, 'DELETE');
+    return proxyRequest(req, rep, `/workspaces/${id}/members/${userId}`, 'DELETE');
   });
 
   // Get brands for workspace
   fastify.get('/workspaces/:id/brands', (req, rep) => {
     const { id } = req.params as { id: string };
-    return proxyRequest(req, rep, `/api/workspaces/${id}/brands`);
+    return proxyRequest(req, rep, `/workspaces/${id}/brands`);
   });
 };
