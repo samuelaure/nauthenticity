@@ -24,6 +24,7 @@ const authenticateService = (request: FastifyRequest, reply: FastifyReply, done:
 // ---------------------------------------------------------------------------
 
 const BrandIntelligenceUpsertSchema = z.object({
+  workspaceId: z.string().min(1),
   mainIgUsername: z.string().optional().nullable(),
   voicePrompt: z.string().min(1),
   commentStrategy: z.string().optional().nullable(),
@@ -236,6 +237,65 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
         brandId: intelligence.brandId,
         voicePrompt: intelligence.voicePrompt.slice(0, 500),
       });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 5b. Service-to-Service structural sync and discovery
+  // -------------------------------------------------------------------------
+
+  /**
+   * List all brands in a workspace with their minimal intelligence DNA.
+   * Used by 9naŭ Triage for routing.
+   */
+  fastify.get('/v1/service/brands', { preHandler: authenticateService }, async (request, reply) => {
+    const { workspaceId } = request.query as { workspaceId?: string };
+    if (!workspaceId) return reply.status(400).send({ error: 'Missing workspaceId' });
+
+    const brands = await prisma.brandIntelligence.findMany({
+      where: { workspaceId },
+      select: {
+        brandId: true,
+        voicePrompt: true,
+      },
+    });
+
+    // Map to the format 9naŭ expects: { id, brandName, voicePrompt }
+    // Note: nauthenticity doesn't store brandName locally, it's owned by 9naŭ.
+    // 9naŭ will map the name on its side if needed, or we just return the ID.
+    return reply.send(
+      brands.map((b) => ({
+        id: b.brandId,
+        brandName: 'Unknown', // Placeholder, 9naŭ owns the actual name
+        voicePrompt: b.voicePrompt,
+      })),
+    );
+  });
+
+  /**
+   * Sync structural changes (like workspaceId) from 9naŭ master.
+   */
+  fastify.patch(
+    '/v1/service/brands/:brandId',
+    { preHandler: authenticateService },
+    async (request, reply) => {
+      const { brandId } = request.params as { brandId: string };
+      const schema = z.object({
+        workspaceId: z.string().optional(),
+        mainIgUsername: z.string().optional(),
+      });
+
+      try {
+        const data = schema.parse(request.body);
+        const updated = await prisma.brandIntelligence.update({
+          where: { brandId },
+          data,
+        });
+        return reply.send(updated);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return reply.status(400).send({ error: msg });
+      }
     },
   );
 
