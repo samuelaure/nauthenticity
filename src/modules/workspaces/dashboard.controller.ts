@@ -1,45 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../../db/prisma';
-import { getDigest } from '../content/synthesis.service';
 
 export const dashboardController = async (fastify: FastifyInstance) => {
-  // -------------------------------------------------------------------------
-  // INSPO BASE UI ENDPOINTS
-  // -------------------------------------------------------------------------
-  fastify.get('/inspo', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { brandId } = request.query as { brandId?: string };
-    if (!brandId) return reply.status(400).send({ error: 'Missing brandId' });
-
-    const items = await prisma.inspoItem.findMany({
-      where: { brandId },
-      include: {
-        post: { select: { instagramUrl: true, caption: true, username: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    return reply.send(items);
-  });
-
-  fastify.get('/inspo/digest', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { brandId } = request.query as { brandId?: string };
-    if (!brandId) return reply.status(400).send({ error: 'Missing brandId' });
-    try {
-      const digest = await getDigest(brandId);
-      return reply.send(digest);
-    } catch (e: any) {
-      return reply.status(500).send({ error: e.message });
-    }
-  });
-
-  fastify.post('/inspo/:id/process', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
-    const updated = await prisma.inspoItem.update({
-      where: { id },
-      data: { status: 'processed' },
-    });
-    return reply.send(updated);
-  });
-
   // -------------------------------------------------------------------------
   // TARGETS UI ENDPOINTS (Phase 4)
   // -------------------------------------------------------------------------
