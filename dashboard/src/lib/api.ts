@@ -218,13 +218,34 @@ export const resumeIngestion = async (username: string) => {
   return data;
 };
 
-export const getWorkspaces = async () => {
-  const { data } = await api.get('/workspaces');
+export type WorkspaceRole = 'owner' | 'admin' | 'member'
+
+export interface NauBrand {
+  id: string
+  workspaceId: string
+  name: string
+  timezone: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NauWorkspace {
+  id: string
+  name: string
+  role: WorkspaceRole
+  brands: NauBrand[]
+  createdAt: string
+  updatedAt: string
+}
+
+export const getWorkspaces = async (): Promise<NauWorkspace[]> => {
+  const { data } = await api.get<NauWorkspace[]>('/workspaces');
   return data;
 };
 
-export const getBrands = async (workspaceId: string) => {
-  const { data } = await api.get(`/workspaces/${workspaceId}/brands`);
+export const getBrands = async (workspaceId: string): Promise<NauBrand[]> => {
+  const { data } = await api.get<NauBrand[]>(`/workspaces/${workspaceId}/brands`);
   return data;
 };
 
