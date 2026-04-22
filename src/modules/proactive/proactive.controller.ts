@@ -227,22 +227,18 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
 
     const brands = await prisma.brandIntelligence.findMany({
       where: { workspaceId },
-      select: {
-        brandId: true,
-        voicePrompt: true,
+      include: {
+        targets: {
+          select: {
+            username: true,
+            profileStrategy: true,
+            targetType: true,
+          },
+        },
       },
     });
 
-    // Map to the format 9naŭ expects: { id, brandName, voicePrompt }
-    // Note: nauthenticity doesn't store brandName locally, it's owned by 9naŭ.
-    // 9naŭ will map the name on its side if needed, or we just return the ID.
-    return reply.send(
-      brands.map((b) => ({
-        id: b.brandId,
-        brandName: 'Unknown', // Placeholder, 9naŭ owns the actual name
-        voicePrompt: b.voicePrompt,
-      })),
-    );
+    return reply.send(brands);
   });
 
   /**
