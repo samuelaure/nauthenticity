@@ -87,6 +87,7 @@ jobs:
             # Pull and deploy with explicit down to resolve container name sync issues
             TAG=latest docker compose pull
             TAG=latest docker compose down
+            docker network create nau-network || true
             TAG=latest docker compose up -d --remove-orphans
 
             # Prune old images
