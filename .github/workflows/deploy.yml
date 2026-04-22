@@ -81,11 +81,12 @@ jobs:
             echo "--- Server Disk Space [BEFORE SWAP] ---"
             df -h /
 
-            # Prune previous dangling images (older than 2h) to clear runway for pull
-            docker image prune -a -f --filter "until=2h" || true
+            # Prune system to clear runway and comply with Protocol S11
+            docker system prune -f
 
-            # Pull and deploy
+            # Pull and deploy with explicit down to resolve container name sync issues
             TAG=latest docker compose pull
+            TAG=latest docker compose down
             TAG=latest docker compose up -d --remove-orphans
 
             # Prune old images
