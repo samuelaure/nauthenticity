@@ -61,7 +61,7 @@ function WorkspaceSelector() {
     setActiveId(id);
     localStorage.setItem('nau_workspace_id', id);
     setOpen(false);
-    navigate('/');
+    navigate(`/workspaces/${id}/brands`);
   };
 
   const handleCreate = async () => {
@@ -87,7 +87,7 @@ function WorkspaceSelector() {
       select(created.id);
       setCreating(false);
       setNewName('');
-      navigate('/');
+      navigate(`/workspaces/${created.id}/brands`);
     } catch (e) {
       console.error('[WorkspaceSelector] create error', e);
     } finally {
