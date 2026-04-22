@@ -1,23 +1,15 @@
-import { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
+import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { logger } from '../../utils/logger';
 import { runProactiveFanout } from './fanout.processor';
 import { generateReactiveComments } from './reactive.service';
-import { config } from '../../config';
 
 // ---------------------------------------------------------------------------
 // Auth middleware — NAU_SERVICE_KEY (inter-service)
 // ---------------------------------------------------------------------------
 
-const authenticateService = (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
-  const serviceKey = request.headers['x-nau-service-key'];
-  if (!serviceKey || serviceKey !== config.nauServiceKey) {
-    reply.status(401).send({ error: 'Unauthorized. Invalid or missing x-nau-service-key.' });
-    return;
-  }
-  done();
-};
+import { authenticate } from '../../utils/auth';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas — intelligence-only fields (structural fields removed)
@@ -76,68 +68,53 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
   // -------------------------------------------------------------------------
   // 1. Reactive trigger
   // -------------------------------------------------------------------------
-  fastify.post(
-    '/v1/generate-comment',
-    { preHandler: authenticateService },
-    async (request, reply) => {
-      try {
-        const { targetUrl, brandId } = request.body as { targetUrl?: string; brandId?: string };
-        if (!targetUrl || !brandId)
-          throw new Error('Missing required fields: targetUrl and brandId');
+  fastify.post('/generate-comment', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const { targetUrl, brandId } = request.body as { targetUrl?: string; brandId?: string };
+      if (!targetUrl || !brandId) throw new Error('Missing required fields: targetUrl and brandId');
 
-        const intelligence = await prisma.brandIntelligence.findUnique({ where: { brandId } });
-        if (!intelligence) return reply.status(404).send({ error: 'Brand intelligence not found' });
+      const intelligence = await prisma.brandIntelligence.findUnique({ where: { brandId } });
+      if (!intelligence) return reply.status(404).send({ error: 'Brand intelligence not found' });
 
-        const suggestions = await generateReactiveComments(targetUrl, brandId);
+      const suggestions = await generateReactiveComments(targetUrl, brandId);
 
-        return reply.send({ success: true, suggestions });
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        logger.error(`[Proactive] Error in generate-comment: ${msg}`);
-        return reply.status(400).send({ error: msg });
-      }
-    },
-  );
+      return reply.send({ success: true, suggestions });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error(`[Proactive] Error in generate-comment: ${msg}`);
+      return reply.status(400).send({ error: msg });
+    }
+  });
 
   // -------------------------------------------------------------------------
   // 2. Comment feedback
   // -------------------------------------------------------------------------
-  fastify.post(
-    '/v1/comment-feedback',
-    { preHandler: authenticateService },
-    async (request, reply) => {
-      try {
-        const { commentText, brandId, sourcePostId, isSelected } = FeedbackSchema.parse(
-          request.body,
-        );
+  fastify.post('/comment-feedback', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const { commentText, brandId, sourcePostId, isSelected } = FeedbackSchema.parse(request.body);
 
-        await prisma.commentFeedback.create({
-          data: { brandId, postId: sourcePostId, commentText, isSelected },
-        });
+      await prisma.commentFeedback.create({
+        data: { brandId, postId: sourcePostId, commentText, isSelected },
+      });
 
-        return reply.send({ success: true });
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        return reply.status(400).send({ error: msg });
-      }
-    },
-  );
+      return reply.send({ success: true });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return reply.status(400).send({ error: msg });
+    }
+  });
 
   // -------------------------------------------------------------------------
   // 3. Manual fanout trigger
   // -------------------------------------------------------------------------
-  fastify.post(
-    '/v1/trigger-fanout',
-    { preHandler: authenticateService },
-    async (_request, reply) => {
-      logger.info(`[Proactive] Manual fanout trigger received.`);
-      runProactiveFanout().catch((e: unknown) => {
-        const msg = e instanceof Error ? e.message : String(e);
-        logger.error(`[FanoutProcessor] Unhandled error: ${msg}`);
-      });
-      return reply.send({ success: true, message: 'Fanout initiated in background.' });
-    },
-  );
+  fastify.post('/trigger-fanout', { preHandler: authenticate }, async (_request, reply) => {
+    logger.info(`[Proactive] Manual fanout trigger received.`);
+    runProactiveFanout().catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error(`[FanoutProcessor] Unhandled error: ${msg}`);
+    });
+    return reply.send({ success: true, message: 'Fanout initiated in background.' });
+  });
 
   // -------------------------------------------------------------------------
   // 4. BrandIntelligence — upsert and fetch (structural Brand CRUD removed)
@@ -145,8 +122,8 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
   // -------------------------------------------------------------------------
 
   fastify.get(
-    '/v1/brands/:brandId/intelligence',
-    { preHandler: authenticateService },
+    '/brands/:brandId/intelligence',
+    { preHandler: authenticate },
     async (request, reply) => {
       const { brandId } = request.params as { brandId: string };
       const intelligence = await prisma.brandIntelligence.findUnique({
@@ -172,8 +149,8 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
   );
 
   fastify.put(
-    '/v1/brands/:brandId/intelligence',
-    { preHandler: authenticateService },
+    '/brands/:brandId/intelligence',
+    { preHandler: authenticate },
     async (request, reply) => {
       const { brandId } = request.params as { brandId: string };
       try {
@@ -196,35 +173,31 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
   // -------------------------------------------------------------------------
 
   // Full DNA — for ideation / composition (high-token)
-  fastify.get(
-    '/v1/brands/:brandId/dna',
-    { preHandler: authenticateService },
-    async (request, reply) => {
-      const { brandId } = request.params as { brandId: string };
-      const intelligence = await prisma.brandIntelligence.findUnique({
-        where: { brandId },
-        include: {
-          targets: { select: { username: true, profileStrategy: true } },
-          syntheses: { orderBy: { createdAt: 'desc' }, take: 1 },
-        },
-      });
-      if (!intelligence) return reply.status(404).send({ error: 'Brand intelligence not found' });
+  fastify.get('/brands/:brandId/dna', { preHandler: authenticate }, async (request, reply) => {
+    const { brandId } = request.params as { brandId: string };
+    const intelligence = await prisma.brandIntelligence.findUnique({
+      where: { brandId },
+      include: {
+        targets: { select: { username: true, profileStrategy: true } },
+        syntheses: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    });
+    if (!intelligence) return reply.status(404).send({ error: 'Brand intelligence not found' });
 
-      return reply.send({
-        brandId: intelligence.brandId,
-        voicePrompt: intelligence.voicePrompt,
-        commentStrategy: intelligence.commentStrategy,
-        suggestionsCount: intelligence.suggestionsCount,
-        targets: intelligence.targets,
-        latestSynthesis: intelligence.syntheses[0] ?? null,
-      });
-    },
-  );
+    return reply.send({
+      brandId: intelligence.brandId,
+      voicePrompt: intelligence.voicePrompt,
+      commentStrategy: intelligence.commentStrategy,
+      suggestionsCount: intelligence.suggestionsCount,
+      targets: intelligence.targets,
+      latestSynthesis: intelligence.syntheses[0] ?? null,
+    });
+  });
 
   // Ultra-light DNA — for triage routing / comment suggestion (low-token)
   fastify.get(
-    '/v1/brands/:brandId/dna-light',
-    { preHandler: authenticateService },
+    '/brands/:brandId/dna-light',
+    { preHandler: authenticate },
     async (request, reply) => {
       const { brandId } = request.params as { brandId: string };
       const intelligence = await prisma.brandIntelligence.findUnique({
@@ -248,7 +221,7 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
    * List all brands in a workspace with their minimal intelligence DNA.
    * Used by 9naŭ Triage for routing.
    */
-  fastify.get('/v1/service/brands', { preHandler: authenticateService }, async (request, reply) => {
+  fastify.get('/service/brands', { preHandler: authenticate }, async (request, reply) => {
     const { workspaceId } = request.query as { workspaceId?: string };
     if (!workspaceId) return reply.status(400).send({ error: 'Missing workspaceId' });
 
@@ -276,8 +249,8 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
    * Sync structural changes (like workspaceId) from 9naŭ master.
    */
   fastify.patch(
-    '/v1/service/brands/:brandId',
-    { preHandler: authenticateService },
+    '/service/brands/:brandId',
+    { preHandler: authenticate },
     async (request, reply) => {
       const { brandId } = request.params as { brandId: string };
       const schema = z.object({
@@ -302,7 +275,7 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
   // -------------------------------------------------------------------------
   // 6. Targets — Create / Update / Delete
   // -------------------------------------------------------------------------
-  fastify.post('/v1/targets', { preHandler: authenticateService }, async (request, reply) => {
+  fastify.post('/targets', { preHandler: authenticate }, async (request, reply) => {
     try {
       const {
         brandId,
@@ -351,8 +324,8 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
   });
 
   fastify.put(
-    '/v1/targets/:brandId/:username',
-    { preHandler: authenticateService },
+    '/targets/:brandId/:username',
+    { preHandler: authenticate },
     async (request, reply) => {
       const { brandId, username } = request.params as { brandId: string; username: string };
       try {
@@ -369,7 +342,7 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
     },
   );
 
-  fastify.delete('/v1/targets', { preHandler: authenticateService }, async (request, reply) => {
+  fastify.delete('/targets', { preHandler: authenticate }, async (request, reply) => {
     const { brandId, username } = request.query as { brandId: string; username: string };
     if (!brandId || !username) {
       return reply.status(400).send({ error: 'Missing required query params: brandId, username' });

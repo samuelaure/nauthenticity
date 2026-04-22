@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
+import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { logger } from '../../utils/logger';
@@ -8,14 +8,7 @@ import { getDigest } from './synthesis.service';
 // ---------------------------------------------------------------------------
 // Auth middleware — NAU_SERVICE_KEY
 // ---------------------------------------------------------------------------
-const authenticate = (request: FastifyRequest, reply: FastifyReply, done: () => void) => {
-  const serviceKey = request.headers['x-nau-service-key'];
-  if (!serviceKey || serviceKey !== config.nauServiceKey) {
-    reply.status(401).send({ error: 'Unauthorized. Invalid or missing x-nau-service-key.' });
-    return;
-  }
-  done();
-};
+import { authenticate } from '../../utils/auth';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -41,7 +34,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
   // -------------------------------------------------------------------------
   // 1. Create InspoItem
   // -------------------------------------------------------------------------
-  fastify.post('/v1/inspo', { preHandler: authenticate }, async (request, reply) => {
+  fastify.post('/inspo', { preHandler: authenticate }, async (request, reply) => {
     try {
       const { brandId, postUrl, postId, note, type } = InspoCreateSchema.parse(request.body);
 
@@ -83,7 +76,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
   // -------------------------------------------------------------------------
   // 2. List InspoItems (filterable)
   // -------------------------------------------------------------------------
-  fastify.get('/v1/inspo', { preHandler: authenticate }, async (request, reply) => {
+  fastify.get('/inspo', { preHandler: authenticate }, async (request, reply) => {
     const { brandId, type, status } = request.query as {
       brandId?: string;
       type?: string;
@@ -110,7 +103,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
   // -------------------------------------------------------------------------
   // 3. Get single InspoItem
   // -------------------------------------------------------------------------
-  fastify.get('/v1/inspo/:id', { preHandler: authenticate }, async (request, reply) => {
+  fastify.get('/inspo/:id', { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const item = await prisma.inspoItem.findUnique({
       where: { id },
@@ -132,7 +125,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
   // -------------------------------------------------------------------------
   // 4. Process InspoItem (AI extraction)
   // -------------------------------------------------------------------------
-  fastify.post('/v1/inspo/:id/process', { preHandler: authenticate }, async (request, reply) => {
+  fastify.post('/inspo/:id/process', { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const item = await prisma.inspoItem.findUnique({
@@ -181,7 +174,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
   // -------------------------------------------------------------------------
   // 5. Digest — Mechanical InspoBase Synthesis (Phase 11)
   // -------------------------------------------------------------------------
-  fastify.get('/v1/inspo/digest', { preHandler: authenticate }, async (request, reply) => {
+  fastify.get('/inspo/digest', { preHandler: authenticate }, async (request, reply) => {
     const { brandId } = request.query as { brandId?: string };
 
     if (!brandId) {
@@ -204,7 +197,7 @@ export const inspoController: FastifyPluginAsync = async (fastify: FastifyInstan
   // -------------------------------------------------------------------------
   // 6. Repost — Forward to flownaŭ
   // -------------------------------------------------------------------------
-  fastify.post('/v1/repost', { preHandler: authenticate }, async (request, reply) => {
+  fastify.post('/repost', { preHandler: authenticate }, async (request, reply) => {
     const { brandId, postUrl } = request.body as { brandId?: string; postUrl?: string };
     if (!brandId || !postUrl) {
       return reply.status(400).send({ error: 'Missing required fields: brandId, postUrl' });
