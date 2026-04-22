@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.11.5](https://github.com/samuelaure/nauthenticity/compare/v1.11.4...v1.11.5) (2026-04-22)
+
+
+### Bug Fixes
+
+* **api:** remove duplicate inspo routes from dashboard controller ([f42b698](https://github.com/samuelaure/nauthenticity/commit/f42b69866815bbf7a20abbf9cfa980fd8985c268))
+* **api:** remove remaining duplicate routes from dashboard controller ([9a788fb](https://github.com/samuelaure/nauthenticity/commit/9a788fbca9c22e4f7166225b4ea0e643c1071809))
+* **api:** restore /api prefix to nauthenticity controllers ([0d38ab7](https://github.com/samuelaure/nauthenticity/commit/0d38ab7289acbb6afcc04985d987e5155434a46b))
+
 ### [1.11.1](https://github.com/samuelaure/nauthenticity/compare/v1.10.2...v1.11.1) (2026-04-22)
 
 ### Features
