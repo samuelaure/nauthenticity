@@ -4,19 +4,18 @@ import { prisma } from '../db/prisma';
 import { logger } from '../utils/logger';
 import fs from 'fs';
 import path from 'path';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { createStorage, nauthenticity } from 'nau-storage';
 import { optimizeImage, optimizeVideo } from '../utils/media';
 import { computeQueue } from './compute.queue';
 import { logContextStorage } from '../utils/context';
 
-const r2Client = config.env.R2_ENDPOINT
-  ? new S3Client({
+const storage = config.env.R2_ENDPOINT && config.env.R2_ACCESS_KEY_ID && config.env.R2_SECRET_ACCESS_KEY && config.env.R2_BUCKET_NAME && config.env.R2_PUBLIC_URL
+  ? createStorage({
       endpoint: config.env.R2_ENDPOINT,
-      region: 'auto',
-      credentials: {
-        accessKeyId: config.env.R2_ACCESS_KEY_ID!,
-        secretAccessKey: config.env.R2_SECRET_ACCESS_KEY!,
-      },
+      accessKeyId: config.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: config.env.R2_SECRET_ACCESS_KEY,
+      bucket: config.env.R2_BUCKET_NAME,
+      publicUrl: config.env.R2_PUBLIC_URL,
     })
   : null;
 
@@ -48,14 +47,11 @@ export const optimizationWorker = new Worker(
         const tempRawPath = path.join(config.paths.temp, `${mediaId}_raw_opt.${fileExt}`);
         const tempOptimizedPath = path.join(config.paths.temp, `${mediaId}_final_opt.${fileExt}`);
 
-        const finalStorageKey = `content/${username}/posts/${mediaId}.${fileExt}`;
-        const rawStorageKey = `raw/${username}/posts/${mediaId}.${fileExt}`;
-        const publicUrl = config.env.R2_PUBLIC_URL
-          ? `${config.env.R2_PUBLIC_URL}/${finalStorageKey}`
-          : `/content/${username}/posts/${mediaId}.${fileExt}`;
+        const rawStorageKey = nauthenticity.rawPost(username, mediaId, fileExt);
+        const finalStorageKey = nauthenticity.post(username, mediaId, fileExt);
 
         try {
-          if (r2Client && config.env.R2_BUCKET_NAME) {
+          if (storage) {
             // 1. Download raw file from R2
             logger.info(`[OptimizationWorker] Downloading raw media ${mediaId} from R2`);
             const response = await fetch(rawUrl);
@@ -71,39 +67,30 @@ export const optimizationWorker = new Worker(
               await optimizeImage(tempRawPath, tempOptimizedPath);
             }
 
-            // 3. Upload Optimized to R2
+            // 3. Upload optimized to R2
             logger.info(`[OptimizationWorker] Uploading optimized media ${mediaId} to R2`);
-            await r2Client.send(
-              new PutObjectCommand({
-                Bucket: config.env.R2_BUCKET_NAME,
-                Key: finalStorageKey,
-                Body: fs.createReadStream(tempOptimizedPath),
-                ContentType: type === 'video' ? 'video/mp4' : 'image/jpeg',
-              }),
+            const publicUrl = await storage.upload(
+              finalStorageKey,
+              fs.createReadStream(tempOptimizedPath),
+              { mimeType: type === 'video' ? 'video/mp4' : 'image/jpeg' },
             );
 
-            // 4. Delete Raw from R2
+            // 4. Delete raw from R2 — raw/ is temporary by design
             logger.info(`[OptimizationWorker] Deleting raw media ${mediaId} from R2`);
-            await r2Client.send(
-              new DeleteObjectCommand({
-                Bucket: config.env.R2_BUCKET_NAME,
-                Key: rawStorageKey,
-              }),
-            );
+            await storage.delete(rawStorageKey);
+
+            // 5. Update DB
+            await prisma.media.update({
+              where: { id: mediaId },
+              data: { storageUrl: publicUrl },
+            });
           } else {
-            // Fallback Logic (Local)
+            // Fallback: local storage
             const localRawPath = path.join(
-              config.paths.storage,
-              'raw',
-              username,
-              'posts',
-              `${mediaId}.${fileExt}`,
+              config.paths.storage, 'raw', username, 'posts', `${mediaId}.${fileExt}`,
             );
             const finalLocalPath = path.join(
-              config.paths.storage,
-              username,
-              'posts',
-              `${mediaId}.${fileExt}`,
+              config.paths.storage, username, 'posts', `${mediaId}.${fileExt}`,
             );
 
             if (fs.existsSync(localRawPath)) {
@@ -114,30 +101,24 @@ export const optimizationWorker = new Worker(
               }
               ensureDir(path.dirname(finalLocalPath));
               fs.copyFileSync(tempOptimizedPath, finalLocalPath);
-              fs.unlinkSync(localRawPath); // delete raw
+              fs.unlinkSync(localRawPath);
             }
+
+            await prisma.media.update({
+              where: { id: mediaId },
+              data: { storageUrl: `/content/${username}/posts/${mediaId}.${fileExt}` },
+            });
           }
 
-          // 5. Update DB
-          await prisma.media.update({
-            where: { id: mediaId },
-            data: { storageUrl: publicUrl },
-          });
-
-          // 6. Check Completion
+          // 6. Check completion
           const countPendingOptimization = await prisma.media.count({
-            where: {
-              post: { runId: runId },
-              storageUrl: { contains: '/raw/' },
-            },
+            where: { post: { runId }, storageUrl: { contains: '/raw/' } },
           });
 
           if (countPendingOptimization === 0) {
             const run = await prisma.scrapingRun.findUnique({ where: { id: runId } });
             if (run?.phase === 'optimizing') {
-              logger.info(
-                `[OptimizationWorker] Run ${runId} fully optimized. Transitioning to VISUALIZING.`,
-              );
+              logger.info(`[OptimizationWorker] Run ${runId} fully optimized. Transitioning to VISUALIZING.`);
               await prisma.scrapingRun.update({
                 where: { id: runId },
                 data: { phase: 'visualizing' },
@@ -155,7 +136,7 @@ export const optimizationWorker = new Worker(
       }
     });
   },
-  { connection: config.redis, concurrency: 1 }, // Low concurrency to protect CPU from starvation
+  { connection: config.redis, concurrency: 1 },
 );
 
 optimizationWorker.on('failed', (job, err) => {
