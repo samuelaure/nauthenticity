@@ -47,17 +47,10 @@ fastify.register(fastifyStatic, {
   prefix: '/',
 });
 
-// 2. Static assets (Media) - Original path
+// 2. Static assets (Media)
 fastify.register(fastifyStatic, {
   root: path.resolve(__dirname, '../storage'),
   prefix: '/content/',
-  decorateReply: false,
-});
-
-// 3. Static assets (Media) - Support /api prefix
-fastify.register(fastifyStatic, {
-  root: path.resolve(__dirname, '../storage'),
-  prefix: '/api/content/',
   decorateReply: false,
 });
 
@@ -98,20 +91,32 @@ fastify.get('/health', async () => {
 // SPA Fallback: Serve index.html for non-api routes
 fastify.setNotFoundHandler((request, reply) => {
   const url = request.raw.url || '';
-  if (url.startsWith('/api') || url.startsWith('/content')) {
-    return reply.status(404).send({ error: 'Not Found' });
+  const accept = request.headers.accept || '';
+
+  // If it's a content asset that's missing
+  if (url.startsWith('/content')) {
+    return reply.status(404).send({ error: 'Asset Not Found' });
   }
+
+  // If it's an API call (no extension OR JSON accepted)
+  const hasExtension = path.extname(url).length > 0;
+  const acceptsHtml = accept.includes('text/html');
+
+  if (hasExtension || !acceptsHtml) {
+    return reply.status(404).send({ error: 'Route Not Found', path: url });
+  }
+
   // This will now correctly look in /app/dashboard/dist because it's the primary decorator
   return reply.sendFile('index.html');
 });
 
-fastify.register(ingestionController, { prefix: '/api' });
-fastify.register(contentController, { prefix: '/api' });
-fastify.register(analyticsController, { prefix: '/api' });
-fastify.register(proactiveController, { prefix: '/api' });
-fastify.register(inspoController, { prefix: '/api' });
-fastify.register(workspacesController, { prefix: '/api' });
-fastify.register(dashboardController, { prefix: '/api' });
+fastify.register(ingestionController);
+fastify.register(contentController);
+fastify.register(analyticsController);
+fastify.register(proactiveController);
+fastify.register(inspoController);
+fastify.register(workspacesController);
+fastify.register(dashboardController);
 
 const start = async () => {
   try {
