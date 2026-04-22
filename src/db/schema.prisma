@@ -36,7 +36,7 @@ model Post {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  @@index([username])
+  @@index([username, postedAt(sort: Desc)])
 }
 
 model IgProfile {
@@ -77,6 +77,8 @@ model Media {
   transcript  Transcript?
 
   createdAt   DateTime @default(now())
+
+  @@index([postId])
 }
 
 model Transcript {
@@ -93,6 +95,8 @@ model Transcript {
 
   createdAt    DateTime @default(now())
   embedding    Embedding?
+
+  @@index([postId])
 }
 
 model Embedding {
@@ -135,6 +139,8 @@ model BrandIntelligence {
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([workspaceId])
 }
 
 model BrandSynthesis {
@@ -205,4 +211,6 @@ model InspoItem {
   injectedContext String? @db.Text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([brandId])
 }
