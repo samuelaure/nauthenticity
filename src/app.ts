@@ -110,13 +110,13 @@ fastify.setNotFoundHandler((request, reply) => {
   return reply.sendFile('index.html');
 });
 
-fastify.register(ingestionController);
-fastify.register(contentController);
-fastify.register(analyticsController);
-fastify.register(proactiveController);
-fastify.register(inspoController);
-fastify.register(workspacesController);
-fastify.register(dashboardController);
+fastify.register(ingestionController, { prefix: '/api' });
+fastify.register(contentController, { prefix: '/api' });
+fastify.register(analyticsController, { prefix: '/api' });
+fastify.register(proactiveController, { prefix: '/api' });
+fastify.register(inspoController, { prefix: '/api' });
+fastify.register(workspacesController, { prefix: '/api' });
+fastify.register(dashboardController, { prefix: '/api' });
 
 const start = async () => {
   try {
