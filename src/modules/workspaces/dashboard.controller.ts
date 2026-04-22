@@ -3,7 +3,7 @@ import { prisma } from '../../db/prisma';
 
 export const dashboardController = async (fastify: FastifyInstance) => {
   // -------------------------------------------------------------------------
-  // TARGETS UI ENDPOINTS (Phase 4)
+  // TARGETS UI ENDPOINTS
   // -------------------------------------------------------------------------
   fastify.get('/targets', async (request: FastifyRequest, reply: FastifyReply) => {
     const { brandId, targetType } = request.query as { brandId?: string; targetType?: string };
@@ -17,32 +17,6 @@ export const dashboardController = async (fastify: FastifyInstance) => {
       orderBy: { createdAt: 'desc' },
     });
     return reply.send(targets);
-  });
-
-  fastify.post('/targets', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { brandId, username, targetType, isActive, initialDownloadCount, autoUpdate } =
-      request.body as any;
-    if (!brandId || !username) return reply.status(400).send({ error: 'Missing required fields' });
-
-    await prisma.igProfile.upsert({
-      where: { username },
-      create: { username },
-      update: {},
-    });
-
-    const target = await prisma.brandTarget.upsert({
-      where: { brandId_username: { brandId, username } },
-      create: {
-        brandId,
-        username,
-        targetType,
-        isActive: isActive ?? true,
-        initialDownloadCount,
-        autoUpdate,
-      },
-      update: { targetType, isActive: isActive ?? true, initialDownloadCount, autoUpdate },
-    });
-    return reply.send(target);
   });
 
   fastify.patch('/targets/:id', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -60,23 +34,5 @@ export const dashboardController = async (fastify: FastifyInstance) => {
       data: dataToUpdate,
     });
     return reply.send(updated);
-  });
-
-  // -------------------------------------------------------------------------
-  // REACTIVE COMMENTS UI ENDPOINTS
-  // -------------------------------------------------------------------------
-  fastify.post('/generate-comment', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { targetUrl, brandId } = request.body as { targetUrl?: string; brandId?: string };
-    if (!targetUrl || !brandId)
-      return reply.status(400).send({ error: 'Missing targetUrl, brandId' });
-
-    try {
-      // Lazy import to avoid circular dependencies if any
-      const { generateReactiveComments } = await import('../proactive/reactive.service');
-      const suggestions = await generateReactiveComments(targetUrl, brandId);
-      return reply.send({ success: true, suggestions });
-    } catch (e: any) {
-      return reply.status(500).send({ error: e.message });
-    }
   });
 };
