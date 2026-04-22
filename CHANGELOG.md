@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.11.6](https://github.com/samuelaure/nauthenticity/compare/v1.11.5...v1.11.6) (2026-04-22)
+
+
+### Bug Fixes
+
+* **deploy:** enforce S11 cleanup and fix container sync issue ([b3415b0](https://github.com/samuelaure/nauthenticity/commit/b3415b02903dae726cb160686ac731568abff3f8))
+
 ### [1.11.5](https://github.com/samuelaure/nauthenticity/compare/v1.11.4...v1.11.5) (2026-04-22)
 
 
