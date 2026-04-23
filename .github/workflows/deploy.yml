@@ -98,5 +98,11 @@ jobs:
             # Give the database a moment to fully initialize after recreation
             sleep 5
 
-            # Run migrations
-            docker compose exec -T app npx prisma migrate deploy --schema src/db/schema.prisma
+            # Run migrations in a separate container without memory constraints
+            # (docker compose exec hits the 384M app container limit and gets OOM-killed)
+            DB_URL="postgresql://nauthenticity_user:${{ secrets.DATABASE_PASSWORD }}@nauthenticity_postgres:5432/nauthenticity?schema=public"
+            docker run --rm \
+              --network nau-network \
+              -e DATABASE_URL="$DB_URL" \
+              ghcr.io/${{ github.repository }}/app:latest \
+              npx prisma migrate deploy --schema src/db/schema.prisma
