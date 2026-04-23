@@ -75,7 +75,7 @@ jobs:
             R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }}
             TAG=latest
             ENVEOF
-            tr -d '\r' < /root/nauthenticity/.env.tmp > /root/nauthenticity/.env
+            sed 's/^[[:space:]]*//' /root/nauthenticity/.env.tmp | tr -d '\r' > /root/nauthenticity/.env
 
             cd /root/nauthenticity
             echo "--- Server Disk Space [BEFORE SWAP] ---"
