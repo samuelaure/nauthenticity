@@ -18,6 +18,7 @@ import { ingestionWorker } from './queues/ingestion.worker';
 import { optimizationWorker } from './queues/optimization.worker';
 
 // Import Controllers
+import { authController } from './modules/auth/auth.controller';
 import { ingestionController } from './modules/ingestion/ingestion.controller';
 import { contentController } from './modules/content/content.controller';
 import { analyticsController } from './modules/analytics/analytics.controller';
@@ -109,6 +110,9 @@ fastify.setNotFoundHandler((request, reply) => {
   // This will now correctly look in /app/dashboard/dist because it's the primary decorator
   return reply.sendFile('index.html');
 });
+
+// Register Auth Controller (before API routes)
+fastify.register(authController);
 
 fastify.register(ingestionController, { prefix: '/api' });
 fastify.register(contentController, { prefix: '/api' });
