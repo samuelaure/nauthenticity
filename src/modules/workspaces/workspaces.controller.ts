@@ -75,4 +75,10 @@ export const workspacesController = async (fastify: FastifyInstance) => {
     const { id } = req.params as { id: string };
     return proxyRequest(req, rep, `/workspaces/${id}/brands`);
   });
+
+  // Create a brand under a workspace
+  fastify.post('/workspaces/:id/brands', (req, rep) => {
+    const { id } = req.params as { id: string };
+    return proxyRequest(req, rep, `/workspaces/${id}/brands`, 'POST');
+  });
 };

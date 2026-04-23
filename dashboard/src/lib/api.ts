@@ -249,6 +249,11 @@ export const getBrands = async (workspaceId: string): Promise<NauBrand[]> => {
   return data;
 };
 
+export const createBrand = async (workspaceId: string, name: string): Promise<NauBrand> => {
+  const { data } = await api.post<NauBrand>(`/workspaces/${workspaceId}/brands`, { name });
+  return data;
+};
+
 export const getBrandIntelligence = async (brandId: string) => {
   const { data } = await api.get(`/brands/${brandId}/intelligence`);
   return data;
