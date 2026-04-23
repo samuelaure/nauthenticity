@@ -1,13 +1,16 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAccount, getBrandIntelligence, ingestAccount, getMediaUrl } from '../lib/api';
+import { getAccount, getBrandIntelligence, patchBrandIntelligence, ingestAccount, getMediaUrl } from '../lib/api';
 import { RefreshCw, Database, AlertCircle } from 'lucide-react';
 import { PostGrid } from '../components/PostGrid';
 
 export const BrandContentView = () => {
-  const { brandId } = useParams<{ brandId: string }>();
+  const { brandId, workspaceId } = useParams<{ brandId: string; workspaceId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [igInput, setIgInput] = React.useState('');
+  const [igError, setIgError] = React.useState('');
 
   // 1. Fetch Brand Intelligence to get mainIgUsername
   const { data: intelligence, isLoading: loadingIntel } = useQuery({
@@ -29,6 +32,26 @@ export const BrandContentView = () => {
     enabled: !!mainIgUsername,
   });
 
+  const linkIgMutation = useMutation({
+    mutationFn: (username: string) =>
+      patchBrandIntelligence(brandId!, { mainIgUsername: username, workspaceId: workspaceId ?? '' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brand-intelligence', brandId] });
+      setIgInput('');
+      setIgError('');
+    },
+    onError: (err: any) => {
+      setIgError(err?.response?.data?.error || err.message || 'Failed to link account');
+    },
+  });
+
+  const handleLinkIg = (e: React.FormEvent) => {
+    e.preventDefault();
+    const username = igInput.trim().replace(/^@/, '');
+    if (!username) { setIgError('Instagram username is required'); return; }
+    linkIgMutation.mutate(username);
+  };
+
   const [sort, setSort] = React.useState<'recent' | 'oldest' | 'likes' | 'comments'>('recent');
   const [scrapeLimit, setScrapeLimit] = React.useState<number>(50);
 
@@ -48,28 +71,46 @@ export const BrandContentView = () => {
           background: 'var(--card-bg)',
           borderRadius: '12px',
           border: '1px solid var(--border)',
+          maxWidth: '480px',
+          margin: '0 auto',
         }}
       >
         <AlertCircle size={48} style={{ color: '#8b949e', marginBottom: '1rem' }} />
-        <h2>Main Instagram Account Not Set</h2>
-        <p style={{ color: '#8b949e', maxWidth: '400px', margin: '0 auto 2rem' }}>
-          Link this brand to its official Instagram profile to see and manage its content here.
+        <h2 style={{ marginBottom: '0.5rem' }}>Link Instagram Account</h2>
+        <p style={{ color: '#8b949e', marginBottom: '2rem' }}>
+          Enter this brand's official Instagram username to see and manage its content.
         </p>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/workspace-settings')} // Or wherever brand settings will live
-          style={{
-            background: '#58a6ff',
-            color: 'white',
-            border: 'none',
-            padding: '0.6rem 1.2rem',
-            borderRadius: '6px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          Go to Settings
-        </button>
+        <form onSubmit={handleLinkIg} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              type="text"
+              value={igInput}
+              onChange={(e) => { setIgInput(e.target.value); setIgError(''); }}
+              placeholder="@username"
+              autoFocus
+              style={{
+                flex: 1,
+                padding: '10px 12px',
+                background: 'var(--bg-primary, #0d1117)',
+                border: `1px solid ${igError ? '#f85149' : 'var(--border-color, #30363d)'}`,
+                borderRadius: '6px',
+                color: 'var(--text-primary, #e6edf3)',
+                fontSize: '14px',
+              }}
+            />
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={linkIgMutation.isPending}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {linkIgMutation.isPending ? 'Linking…' : 'Link Account'}
+            </button>
+          </div>
+          {igError && (
+            <p style={{ color: '#f85149', fontSize: '13px', margin: 0, textAlign: 'left' }}>{igError}</p>
+          )}
+        </form>
       </div>
     );
   }

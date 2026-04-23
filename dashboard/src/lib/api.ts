@@ -259,6 +259,11 @@ export const getBrandIntelligence = async (brandId: string) => {
   return data;
 };
 
+export const patchBrandIntelligence = async (brandId: string, patch: Record<string, unknown>) => {
+  const { data } = await api.patch(`/brands/${brandId}/intelligence`, patch);
+  return data;
+};
+
 export const getInspoItems = async (brandId: string) => {
   const { data } = await api.get(`/inspo?brandId=${brandId}`);
   return data;

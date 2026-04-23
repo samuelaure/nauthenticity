@@ -168,6 +168,33 @@ export const proactiveController: FastifyPluginAsync = async (fastify: FastifyIn
     },
   );
 
+  // Partial update — only update provided fields (no voicePrompt required)
+  // Uses upsert so it also works for brands with no intelligence record yet
+  fastify.patch(
+    '/brands/:brandId/intelligence',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { brandId } = request.params as { brandId: string };
+      try {
+        const body = request.body as Record<string, unknown>;
+        const allowed = ['workspaceId', 'mainIgUsername', 'voicePrompt', 'commentStrategy', 'suggestionsCount', 'windowStart', 'windowEnd', 'timezone'];
+        const patch: Record<string, unknown> = {};
+        for (const key of allowed) {
+          if (key in body) patch[key] = body[key];
+        }
+        const intelligence = await prisma.brandIntelligence.upsert({
+          where: { brandId },
+          update: patch,
+          create: { brandId, workspaceId: (patch.workspaceId as string) ?? '', voicePrompt: (patch.voicePrompt as string) ?? '', ...patch },
+        });
+        return reply.send(intelligence);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return reply.status(400).send({ error: msg });
+      }
+    },
+  );
+
   // -------------------------------------------------------------------------
   // 5. Brand DNA endpoints — intelligence-only
   // -------------------------------------------------------------------------
