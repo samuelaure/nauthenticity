@@ -24,7 +24,7 @@ export const authController = async (fastify: FastifyInstance) => {
     const cookieValue = `nau_token=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; HttpOnly; Secure; SameSite=Lax`;
     reply.header('Set-Cookie', cookieValue);
 
-    // Redirect to dashboard
-    return reply.redirect('/');
+    // Redirect to frontend auth callback so it can extract and store token in localStorage
+    return reply.redirect(`/auth/callback?token=${encodeURIComponent(token)}`);
   });
 };
