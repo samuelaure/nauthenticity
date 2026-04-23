@@ -100,7 +100,9 @@ fastify.setNotFoundHandler((request, reply) => {
   }
 
   // If it's an API call (no extension OR JSON accepted)
-  const hasExtension = path.extname(url).length > 0;
+  // Use only the pathname (strip query string) to avoid false positives from dots in query params (e.g. JWT tokens)
+  const pathname = url.split('?')[0];
+  const hasExtension = path.extname(pathname).length > 0;
   const acceptsHtml = accept.includes('text/html');
 
   if (hasExtension || !acceptsHtml) {
