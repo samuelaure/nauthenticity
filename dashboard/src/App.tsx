@@ -21,6 +21,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/auth/complete" element={<AuthCallback />} />
           <Route
             path="/*"
             element={
